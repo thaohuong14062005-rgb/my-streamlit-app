@@ -73,3 +73,5 @@ elif tab == "Bài 11 — Q-learning RL":
     bai11.run()
 elif tab == "Bài 12 — AIDEOM-VN Dashboard":
     bai12.run()
+else:
+    module_dang_bo_sung(page)
