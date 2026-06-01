@@ -6,7 +6,7 @@ import seaborn as sns
 import pulp
 
 # ==============================================================================
-# 1. CẤU HÌNH GIAO DIỆN CHUNG (DARK THEME ĐƯỢC TỰ ĐỘNG ÁP DỤNG THEO HỆ THỐNG)
+# 1. CẤU HÌNH GIAO DIỆN CHUNG
 # ==============================================================================
 st.set_page_config(
     page_title="AIDEOM-VN | Mô Hình Ra Quyết Định",
@@ -15,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Thêm CSS tùy chỉnh để giao diện trông chuyên nghiệp, đồng bộ màu sắc
 st.markdown("""
     <style>
     .main-title { font-size: 2.2rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem; }
@@ -31,7 +30,6 @@ st.sidebar.markdown("# 🌱 VN AIDEOM-VN")
 st.sidebar.markdown("*Mô hình ra quyết định phát triển kinh tế VN trong kỉ nguyên AI*")
 st.sidebar.markdown("---")
 
-# Danh sách 12 bài tập chuẩn theo tài liệu
 pages = [
     "🏠 Trang chủ",
     "Bài 1 — Cobb-Douglas + AI",
@@ -48,7 +46,6 @@ pages = [
     "Bài 12 — AIDEOM tích hợp"
 ]
 
-# Sử dụng radio button cho danh sách bài tập (mặc định trỏ vào Bài 4)
 selected_page = st.sidebar.radio("Danh sách bài tập thực hành", pages, index=4)
 
 st.sidebar.markdown("---")
@@ -63,7 +60,7 @@ def render_home():
     Bộ bài tập thực hành này được thiết kế nhằm mô hình hóa các bài toán chính sách kinh tế Việt Nam trong kỷ nguyên trí tuệ nhân tạo.
     Hệ thống được tổ chức theo độ khó tăng dần qua 4 cấp độ:
     
-    * 🟢 **Cấp độ Dễ (Bài 1-3):** Ước lượng hàm sản xuất Cobb-Douglas mở rộng, Quy hoạch tuyến tính (LP) phân bổ ngân sách đơn giản và tính chỉ số ưu tiên ngành (TOPSIS cơ bản).
+    * 🟢 **Cấp độ Dễ (Bài 1-3):** Ước lượng hàm sản xuất Cobb-Douglas mở rộng, Quy hoạch tuyến tính (LP) phân bổ ngân sách đơn giản và tính chỉ số ưu tiên ngành.
     * 🟡 **Cấp độ Trung bình (Bài 4-6):** Quy hoạch tuyến tính đa biến (LP ngành - vùng), Quy hoạch nguyên hỗn hợp (MIP) lựa chọn dự án công nghệ và Xếp hạng vùng theo thuật toán TOPSIS Entropy.
     * 🟠 **Cấp độ Khá khó (Bài 7-9):** Tối ưu đa mục tiêu bằng thuật toán tiến hóa NSGA-II, Quy hoạch động phi tuyến liên thời gian (2026-2035) và Mô phỏng dịch chuyển thị trường lao động.
     * 🔴 **Cấp độ Khó (Bài 10-12):** Quy hoạch ngẫu nhiên hai giai đoạn (Stochastic SP), Học tăng cường thích nghị (Q-learning RL) và Đồ án tích hợp hệ thống dashboard AIDEOM-VN toàn diện.
@@ -72,20 +69,23 @@ def render_home():
     """)
 
 # ==============================================================================
-# 4. ĐỊNH NGHĨA GIAO DIỆN VÀ CODE GIẢI BÀI 4
+# 4. ĐỊNH NGHĨA GIAO DIỆN VÀ CODE GIẢI BÀI 4 (BỔ SUNG HIỂN THỊ CODE TRÊN WEB)
 # ==============================================================================
 def render_bai_4():
     st.markdown('<div class="main-title">Bài 4 — Quy hoạch tuyến tính phân bổ ngân sách số theo ngành - vùng</div>', unsafe_allowed_html=True)
     st.markdown("<div class=\"sub-title\">Tối ưu hóa phân bổ 50.000 tỷ VND ngân sách kinh tế số quốc gia cho 6 vùng kinh tế xã hội và 4 hạng mục đầu tư chiến lược nhằm tối đa hóa tăng trưởng GDP và bảo đảm công bằng vùng miền.</div>", unsafe_allowed_html=True)
     
-    # 3 Tab chức năng tương tự như sơ đồ thiết kế UI ứng dụng
-    tab_model, tab_result, tab_analysis = st.tabs(["📋 Mô hình toán & Tham số", "📊 Kết quả tối ưu", "📈 Phân tích độ nhạy"])
+    # Bổ sung Tab hiển thị mã nguồn trực tiếp trên giao diện web
+    tab_model, tab_result, tab_analysis, tab_code = st.tabs([
+        "📋 Mô hình toán & Tham số", 
+        "📊 Kết quả tối ưu", 
+        "📈 Phân tích độ nhạy", 
+        "💻 Giao diện hiện mã nguồn giải thuật"
+    ])
     
-    # Thiết lập bộ dữ liệu gốc từ tệp đính kèm tài liệu
     regions = ['1. Trung du miền núi phía Bắc', '2. Đồng bằng sông Hồng', '3. Bắc Trung Bộ + DH Trung Bộ', '4. Tây Nguyên', '5. Đông Nam Bộ', '6. Đồng bằng sông Cửu Long']
-    items = ['I', 'D', 'AI', 'H'] # I: Hạ tầng số, D: Chuyển đổi số DN, AI: Năng lực AI, H: Nhân lực số
+    items = ['I', 'D', 'AI', 'H'] 
     
-    # Ma trận hệ số tác động biên beta (đơn vị: nghìn VND GDP / 1 triệu VND đầu tư)
     beta = {
         ('1. Trung du miền núi phía Bắc', 'I'): 1.15, ('1. Trung du miền núi phía Bắc', 'D'): 0.85, ('1. Trung du miền núi phía Bắc', 'AI'): 0.55, ('1. Trung du miền núi phía Bắc', 'H'): 1.30,
         ('2. Đồng bằng sông Hồng', 'I'): 0.95, ('2. Đồng bằng sông Hồng', 'D'): 1.25, ('2. Đồng bằng sông Hồng', 'AI'): 1.40, ('2. Đồng bằng sông Hồng', 'H'): 1.05,
@@ -95,19 +95,13 @@ def render_bai_4():
         ('6. Đồng bằng sông Cửu Long', 'I'): 1.10, ('6. Đồng bằng sông Cửu Long', 'D'): 0.85, ('6. Đồng bằng sông Cửu Long', 'AI'): 0.65, ('6. Đồng bằng sông Cửu Long', 'H'): 1.25
     }
     
-    # Chỉ số số hóa ban đầu D0 của 6 vùng
     D0 = {
-        '1. Trung du miền núi phía Bắc': 38,
-        '2. Đồng bằng sông Hồng': 78,
-        '3. Bắc Trung Bộ + DH Trung Bộ': 55,
-        '4. Tây Nguyên': 32,
-        '5. Đông Nam Bộ': 82,
-        '6. Đồng bằng sông Cửu Long': 48
+        '1. Trung du miền núi phía Bắc': 38, '2. Đồng bằng sông Hồng': 78, '3. Bắc Trung Bộ + DH Trung Bộ': 55,
+        '4. Tây Nguyên': 32, '5. Đông Nam Bộ': 82, '6. Đồng bằng sông Cửu Long': 48
     }
     
     with tab_model:
         st.markdown("### 🎛️ Cấu hình các tham số ràng buộc hệ thống")
-        
         col1, col2 = st.columns(2)
         with col1:
             total_budget = st.number_input("Tổng ngân sách phân bổ tối đa (C1) - Tỷ VND", value=50000, step=1000)
@@ -120,7 +114,6 @@ def render_bai_4():
             
         enable_fairness = st.checkbox("Kích hoạt ràng buộc công bằng vùng miền (C5)", value=True)
         
-        # Lưu tham số vào session state để đồng bộ dữ liệu tính toán giữa các tab
         st.session_state['total_budget'] = total_budget
         st.session_state['min_region_budget'] = min_region_budget
         st.session_state['max_region_budget'] = max_region_budget
@@ -129,7 +122,7 @@ def render_bai_4():
         st.session_state['lam'] = lam
         st.session_state['enable_fairness'] = enable_fairness
 
-    # PHẦN XỬ LÝ TOÁN TỐI ƯU HÓA BẰNG PULP SOLVER
+    # THỰC THI THUẬT TOÁN TOÁN HỌC
     t_b = st.session_state.get('total_budget', 50000)
     m_r = st.session_state.get('min_region_budget', 5000)
     M_r = st.session_state.get('max_region_budget', 12000)
@@ -138,39 +131,22 @@ def render_bai_4():
     l = st.session_state.get('lam', 0.9)
     f_on = st.session_state.get('enable_fairness', True)
     
-    # Khởi tạo mô hình bài toán quy hoạch tuyến tính Maximize
     prob = pulp.LpProblem('VN_Digital_Budget_Optimization', pulp.LpMaximize)
-    
-    # Khai báo các biến quyết định (Ma trận x[r][j] >= 0)
     x = pulp.LpVariable.dicts('x', (regions, items), lowBound=0, cat='Continuous')
-    
-    # Biến phụ M để tuyến tính hóa hàm cực đại Max(D_r + gamma * x_D,r)
     M_var = pulp.LpVariable('D_max_bound', lowBound=0)
     
-    # Định nghĩa hàm mục tiêu: Tối đa hóa GDP Gain tổng thể
     prob += pulp.lpSum(beta[(r, j)] * x[r][j] for r in regions for j in items), "Total_GDP_Gain"
-    
-    # Ràng buộc C1: Tổng ngân sách số quốc gia
     prob += pulp.lpSum(x[r][j] for r in regions for j in items) <= t_b, "C1_Total_Budget"
-    
-    # Ràng buộc C4: Sàn đầu tư ưu tiên phát triển nguồn nhân lực số
     prob += pulp.lpSum(x[r]['H'] for r in regions) >= m_h, "C4_Min_Human_Resource"
     
-    # Áp đặt ràng buộc cục bộ trên từng vùng kinh tế
     for r in regions:
-        # Ràng buộc C2 & C3: Giới hạn sàn và trần đầu tư để tránh tập trung cục bộ
         prob += pulp.lpSum(x[r][j] for j in items) >= m_r, f"C2_Min_Budget_{r}"
         prob += pulp.lpSum(x[r][j] for j in items) <= M_r, f"C3_Max_Budget_{r}"
-        
-        # Ràng buộc C5: Công bằng vùng miền (Linear hóa bằng biến chặn trên M_var)
         if f_on:
             prob += D0[r] + g * x[r]['D'] <= M_var, f"C5_Upper_Bound_{r}"
             prob += D0[r] + g * x[r]['D'] >= l * M_var, f"C5_Fairness_Constraint_{r}"
 
-    # Thực thi giải thuật bằng solver CBC mặc định của PuLP
     prob.solve(pulp.PULP_CBC_CMD(msg=False))
-    
-    # Trích xuất dữ liệu sau khi tối ưu thành công
     status = pulp.LpStatus[prob.status]
     
     if status == 'Optimal':
@@ -190,26 +166,71 @@ def render_bai_4():
         gdp_gain = pulp.value(prob.objective)
         
         with tab_result:
-            st.success(f"🚀 **Trạng thái:** Tìm thấy phương án tối ưu thỏa mãn tất cả hệ ràng buộc toán học.")
+            st.success(f"🚀 **Trạng thái:** Tìm thấy phương án tối ưu thỏa mãn tất cả hệ ràng buộc.")
             st.metric(label="Tổng GDP tăng thêm kỳ vọng (Z*)", value=f"{gdp_gain:,.2f} tỷ VND")
-            
             st.markdown("#### Ma trận phân bổ chi tiết (Đơn vị: Tỷ VND)")
-            st.dataframe(df_res = df_result.style.format({
+            st.dataframe(df_result.style.format({
                 'I': '{:,.2f}', 'D': '{:,.2f}', 'AI': '{:,.2f}', 'H': '{:,.2f}', 
                 'Tổng Phân Bổ': '{:,.2f}', 'Chỉ số Số Hóa Mới': '{:.2f}'
             }), use_container_width=True)
             
-            # Tóm tắt phân bổ theo hạng mục đầu tư để đánh giá chính sách
-            st.markdown("#### Cơ cấu đầu tư theo nhóm mục tiêu công nghệ")
-            summary_items = {
-                'Hạ tầng số (I)': sum(pulp.value(x[r]['I']) for r in regions),
-                'Chuyển đổi số DN (D)': sum(pulp.value(x[r]['D']) for r in regions),
-                'Năng lực AI': sum(pulp.value(x[r]['AI']) for r in regions),
-                'Nhân lực số (H)': sum(pulp.value(x[r]['H']) for r in regions)
-            }
-            df_sum = pd.DataFrame(list(summary_items.items()), columns=['Hạng mục', 'Ngân sách (Tỷ VND)'])
-            st.dataframe(df_sum.style.format({'Ngân sách (Tỷ VND)': '{:,.2f}'}), use_container_width=True)
-            
         with tab_analysis:
             st.markdown("### 🗺️ Bản đồ nhiệt (Heatmap) ma trận phân bổ vốn tối ưu")
-            df_heatmap = df_result.set_
+            df_heatmap = df_result.set_index('Vùng Kinh Tế - Xã Hội')[['I', 'D', 'AI', 'H']]
+            fig, ax = plt.subplots(figsize=(10, 5))
+            sns.heatmap(df_heatmap, annot=True, fmt=".1f", cmap="Blues", linewidths=.5, ax=ax)
+            st.pyplot(fig)
+            
+        # TAB HIỂN THỊ CODE TRÊN ỨNG DỤNG WEB
+        with tab_code:
+            st.markdown("### 💻 Mã nguồn Python giải quyết Bài 4 (Sử dụng thư viện PuLP)")
+            st.markdown("Đoạn mã dưới đây thực hiện cấu hình hàm mục tiêu tối đa hóa GDP và áp đặt các hệ ràng buộc tuyến tính hóa lớp chặn vùng miền:")
+            
+            # Khai báo chuỗi code mẫu để hiển thị trực quan lên web app bằng st.code()
+            pulp_code_string = """import pulp
+
+# 1. Khởi tạo bài toán tối ưu hóa tuyến tính
+prob = pulp.LpProblem('VN_Digital_Budget_Optimization', pulp.LpMaximize)
+
+# 2. Khai báo ma trận biến quyết định ẩn cho 6 vùng x 4 mục tiêu
+x = pulp.LpVariable.dicts('x', (regions, items), lowBound=0, cat='Continuous')
+
+# Biến trung gian dùng để trần hóa tuyến tính ràng buộc C5 (Hàm Max)
+M_var = pulp.LpVariable('D_max_bound', lowBound=0)
+
+# 3. Thiết lập hàm mục tiêu: Tối đa hóa lợi ích kinh tế (GDP Gain)
+prob += pulp.lpSum(beta[(r, j)] * x[r][j] for r in regions for j in items)
+
+# 4. Ràng buộc C1: Trần tổng ngân sách phân bổ toàn quốc
+prob += pulp.lpSum(x[r][j] for r in regions for j in items) <= total_budget
+
+# 5. Ràng buộc C4: Đảm bảo ngân sách sàn tối thiểu cho phát triển nguồn nhân lực số (H)
+prob += pulp.lpSum(x[r]['H'] for r in regions) >= min_h_budget
+
+# 6. Ràng buộc phân rã cho từng vùng địa lý (C2, C3, C5)
+for r in regions:
+    prob += pulp.lpSum(x[r][j] for j in items) >= min_region_budget  # Sàn vùng (C2)
+    prob += pulp.lpSum(x[r][j] for j in items) <= max_region_budget  # Trần vùng (C3)
+    
+    # Ràng buộc công bằng vùng miền C5 (Tuyến tính hóa Min-Max Bound)
+    prob += D0[r] + gamma * x[r]['D'] <= M_var
+    prob += D0[r] + gamma * x[r]['D'] >= lam * M_var
+
+# 7. Triển khai gọi bộ giải solver xử lý hệ phương trình
+prob.solve()"""
+            
+            st.code(pulp_code_string, language='python')
+    else:
+        with tab_result:
+            st.error("❌ Không tìm thấy nghiệm khả thi!")
+
+# ==============================================================================
+# 5. ĐIỀU PHỐI VÀ KHỞI CHẠY ỨNG DỤNG HỆ THỐNG
+# ==============================================================================
+if selected_page == "🏠 Trang chủ":
+    render_home()
+elif selected_page == "Bài 4 — LP ngành-vùng":
+    render_bai_4()
+else:
+    st.markdown(f'<div class="main-title">{selected_page}</div>', unsafe_allowed_html=True)
+    st.warning("Hệ thống hiển thị đang tập trung chạy demo cho bài chỉ định. Module này đang nằm trong tiến trình pipeline xử lý.")
