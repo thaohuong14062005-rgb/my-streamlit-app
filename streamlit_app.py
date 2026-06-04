@@ -158,36 +158,134 @@ def render_module(module_paths, module_label: str):
 # SIDEBAR
 # =========================
 
-st.sidebar.title("🇻🇳 AIDEOM-VN")
-st.sidebar.caption(
-    "Mô hình ra quyết định phát triển kinh tế Việt Nam trong kỷ nguyên AI"
-)
-
-menu = st.sidebar.radio(
-    "Chọn bài",
-    [
-        "🏠 Trang chủ",
-        "🌱 Bài 1 — Cobb-Douglas + AI",
-        "💰 Bài 2 — LP ngân sách số",
-        "📊 Bài 3 — Priority 10 ngành",
-        "🗺️ Bài 4 — LP ngành-vùng",
-        "🎯 Bài 5 — MIP 15 dự án",
-        "🏆 Bài 6 — TOPSIS 6 vùng",
-        "🌐 Bài 7 — NSGA-II Pareto",
-        "⏳ Bài 8 — Động 2026-2035",
-        "👷 Bài 9 — Lao động & AI",
-        "🎲 Bài 10 — Stochastic SP",
-        "🤖 Bài 11 — Q-learning RL",
-        "🧠 Bài 12 — AIDEOM tích hợp",
-    ]
-)
-
-
 # =========================
-# TRANG CHỦ
+# SIDEBAR MENU CHIA NHÓM
 # =========================
 
-if menu == "🏠 Trang chủ":
+MODULE_GROUPS = {
+    "🟢 Nhóm Dễ — Bài 1 đến Bài 3": {
+        "bai01": {
+            "label": "🌱 Bài 1 — Cobb-Douglas + AI",
+            "desc": "Hàm sản xuất, TFP, dự báo GDP 2030",
+            "paths": [
+                "bai01_cobb_douglas",
+                "bai1_cobb_douglas",
+                "modules.bai1_cobb_douglas",
+            ],
+        },
+        "bai02": {
+            "label": "💰 Bài 2 — LP ngân sách số",
+            "desc": "Phân bổ ngân sách số bằng Linear Programming",
+            "paths": [
+                "bai02_lp_phan_bo",
+                "bai2_lp_budget",
+                "modules.bai2_lp_budget",
+            ],
+        },
+        "bai03": {
+            "label": "📊 Bài 3 — Priority 10 ngành",
+            "desc": "Chỉ số ưu tiên ngành, min-max, phân tích trọng số",
+            "paths": [
+                "bai03_priority",
+                "bai3_priority_sectors",
+                "modules.bai3_priority_sectors",
+            ],
+        },
+    },
+
+    "🟡 Nhóm Trung bình — Bài 4 đến Bài 6": {
+        "bai04": {
+            "label": "🗺️ Bài 4 — LP ngành-vùng",
+            "desc": "Phân bổ ngân sách theo vùng và hạng mục đầu tư",
+            "paths": [
+                "bai04_lp_nganh_vung",
+                "bai4_lp_region_budget",
+                "modules.bai4_lp_region_budget",
+            ],
+        },
+        "bai05": {
+            "label": "🎯 Bài 5 — MIP 15 dự án",
+            "desc": "Lựa chọn dự án chuyển đổi số bằng MIP",
+            "paths": [
+                "bai05_mip_15_du_an",
+                "bai5_mip_project_selection",
+                "modules.bai5_mip_project_selection",
+            ],
+        },
+        "bai06": {
+            "label": "🏆 Bài 6 — TOPSIS 6 vùng",
+            "desc": "Xếp hạng vùng ưu tiên đầu tư AI",
+            "paths": [
+                "bai06_topsis_6_vung",
+                "bai6_topsis_ai_regions",
+                "modules.bai6_topsis_ai_regions",
+            ],
+        },
+    },
+
+    "🟠 Nhóm Khá khó — Bài 7 đến Bài 9": {
+        "bai07": {
+            "label": "🌐 Bài 7 — NSGA-II Pareto",
+            "desc": "Tối ưu đa mục tiêu và đường biên Pareto",
+            "paths": [
+                "bai07_nsga2_pareto",
+                "bai7_nsga2_pareto",
+                "modules.bai7_nsga2_pareto",
+            ],
+        },
+        "bai08": {
+            "label": "⏳ Bài 8 — Động 2026-2035",
+            "desc": "Tối ưu động phân bổ liên thời gian",
+            "paths": [
+                "bai08_dynamic_2026_2035",
+                "bai8_dynamic_optimization",
+                "modules.bai8_dynamic_optimization",
+            ],
+        },
+        "bai09": {
+            "label": "👷 Bài 9 — Lao động & AI",
+            "desc": "Mô phỏng tác động AI tới thị trường lao động",
+            "paths": [
+                "bai09_lao_dong_ai",
+                "bai9_ai_labor_market",
+                "modules.bai9_ai_labor_market",
+            ],
+        },
+    },
+
+    "🔴 Nhóm Khó — Bài 10 đến Bài 12": {
+        "bai10": {
+            "label": "🎲 Bài 10 — Stochastic SP",
+            "desc": "Quy hoạch ngẫu nhiên hai giai đoạn",
+            "paths": [
+                "bai10_stochastic_sp",
+                "bai10_stochastic_programming",
+                "modules.bai10_stochastic_programming",
+            ],
+        },
+        "bai11": {
+            "label": "🤖 Bài 11 — Q-learning RL",
+            "desc": "Học tăng cường cho chính sách kinh tế thích nghi",
+            "paths": [
+                "bai11_q_learning_rl",
+                "bai11_qlearning_policy",
+                "modules.bai11_qlearning_policy",
+            ],
+        },
+        "bai12": {
+            "label": "🧠 Bài 12 — AIDEOM tích hợp",
+            "desc": "Dashboard tích hợp toàn bộ mô hình AIDEOM-VN",
+            "paths": [
+                "bai12_aideom_vn",
+                "bai12_aideom_vn_integrated",
+                "modules.bai12_aideom_vn_integrated",
+            ],
+        },
+    },
+}
+
+
+def show_home_page():
     st.markdown(
         """
         <div class="card">
@@ -212,32 +310,41 @@ if menu == "🏠 Trang chủ":
     col3.metric("FDI 2025", "27,6 tỷ USD", "+8,9%")
     col4.metric("GDP/người 2025", "5.026 USD", "+6,9%")
 
-    st.markdown("## 📌 Danh sách 12 module")
+    st.markdown("## 📚 Cấu trúc 12 bài")
 
-    modules = [
-        ("🌱 Bài 1", "Cobb-Douglas mở rộng với AI và số hóa"),
-        ("💰 Bài 2", "LP phân bổ ngân sách số"),
-        ("📊 Bài 3", "Priority 10 ngành"),
-        ("🗺️ Bài 4", "LP ngành-vùng"),
-        ("🎯 Bài 5", "MIP lựa chọn 15 dự án"),
-        ("🏆 Bài 6", "TOPSIS 6 vùng"),
-        ("🌐 Bài 7", "NSGA-II Pareto"),
-        ("⏳ Bài 8", "Tối ưu động 2026-2035"),
-        ("👷 Bài 9", "Lao động và AI"),
-        ("🎲 Bài 10", "Stochastic Programming"),
-        ("🤖 Bài 11", "Q-learning RL"),
-        ("🧠 Bài 12", "AIDEOM-VN tích hợp"),
+    groups_desc = [
+        {
+            "title": "🟢 Nhóm Dễ",
+            "subtitle": "Bài 1–3",
+            "content": "Cobb-Douglas, LP đơn giản, chỉ số Priority ngành.",
+        },
+        {
+            "title": "🟡 Nhóm Trung bình",
+            "subtitle": "Bài 4–6",
+            "content": "LP ngành-vùng, MIP lựa chọn dự án, TOPSIS vùng.",
+        },
+        {
+            "title": "🟠 Nhóm Khá khó",
+            "subtitle": "Bài 7–9",
+            "content": "NSGA-II Pareto, tối ưu động, mô phỏng lao động AI.",
+        },
+        {
+            "title": "🔴 Nhóm Khó",
+            "subtitle": "Bài 10–12",
+            "content": "Stochastic Programming, Q-learning, dashboard tích hợp.",
+        },
     ]
 
-    c1, c2, c3 = st.columns(3)
+    cols = st.columns(4)
 
-    for i, (title, desc) in enumerate(modules):
-        with [c1, c2, c3][i % 3]:
+    for i, group in enumerate(groups_desc):
+        with cols[i]:
             st.markdown(
                 f"""
                 <div class="card">
-                    <h3>{title}</h3>
-                    <p>{desc}</p>
+                    <h3>{group["title"]}</h3>
+                    <h4>{group["subtitle"]}</h4>
+                    <p>{group["content"]}</p>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -245,128 +352,65 @@ if menu == "🏠 Trang chủ":
 
 
 # =========================
-# GỌI MODULE AN TOÀN
+# HIỂN THỊ SIDEBAR
 # =========================
 
-elif menu == "🌱 Bài 1 — Cobb-Douglas + AI":
-    render_module(
+with st.sidebar:
+    st.markdown("## 🇻🇳 VN AIDEOM-VN")
+    st.caption("Mô hình ra quyết định phát triển kinh tế Việt Nam trong kỷ nguyên AI")
+    st.divider()
+
+    main_page = st.radio(
+        "Điều hướng",
         [
-            "modules.bai1_cobb_douglas",
-            "bai01_cobb_douglas",
-            "bai1_cobb_douglas",
+            "🏠 Trang chủ",
+            "📚 Chọn nhóm bài",
         ],
-        menu
+        index=0
     )
 
-elif menu == "💰 Bài 2 — LP ngân sách số":
-    render_module(
-        [
-            "modules.bai2_lp_budget",
-            "bai02_lp_phan_bo",
-            "bai2_lp_budget",
-        ],
-        menu
-    )
+    selected_key = "home"
+    selected_label = "🏠 Trang chủ"
+    selected_paths = []
 
-elif menu == "📊 Bài 3 — Priority 10 ngành":
-    render_module(
-        [
-            "modules.bai3_priority_sectors",
-            "bai03_priority",
-            "bai3_priority_sectors",
-        ],
-        menu
-    )
+    if main_page == "📚 Chọn nhóm bài":
+        selected_group = st.selectbox(
+            "Chọn cấp độ",
+            list(MODULE_GROUPS.keys())
+        )
 
-elif menu == "🗺️ Bài 4 — LP ngành-vùng":
-    render_module(
-        [
-            "modules.bai4_lp_region_budget",
-            "bai04_lp_nganh_vung",
-            "bai4_lp_region_budget",
-        ],
-        menu
-    )
+        group_modules = MODULE_GROUPS[selected_group]
 
-elif menu == "🎯 Bài 5 — MIP 15 dự án":
-    render_module(
-        [
-            "modules.bai5_mip_project_selection",
-            "bai05_mip_15_du_an",
-            "bai5_mip_project_selection",
-        ],
-        menu
-    )
+        selected_key = st.radio(
+            "Chọn bài trong nhóm",
+            list(group_modules.keys()),
+            format_func=lambda key: group_modules[key]["label"]
+        )
 
-elif menu == "🏆 Bài 6 — TOPSIS 6 vùng":
-    render_module(
-        [
-            "modules.bai6_topsis_ai_regions",
-            "bai06_topsis_6_vung",
-            "bai6_topsis_ai_regions",
-        ],
-        menu
-    )
+        selected_label = group_modules[selected_key]["label"]
+        selected_paths = group_modules[selected_key]["paths"]
 
-elif menu == "🌐 Bài 7 — NSGA-II Pareto":
-    render_module(
-        [
-            "modules.bai7_nsga2_pareto",
-            "bai07_nsga2_pareto",
-            "bai7_nsga2_pareto",
-        ],
-        menu
-    )
+        st.divider()
+        st.markdown("### 📌 Mô tả bài")
+        st.info(group_modules[selected_key]["desc"])
 
-elif menu == "⏳ Bài 8 — Động 2026-2035":
-    render_module(
-        [
-            "modules.bai8_dynamic_optimization",
-            "bai08_dynamic_2026_2035",
-            "bai8_dynamic_optimization",
-        ],
-        menu
-    )
+    else:
+        st.divider()
+        st.info("Chọn “📚 Chọn nhóm bài” để mở danh sách 12 module.")
 
-elif menu == "👷 Bài 9 — Lao động & AI":
-    render_module(
-        [
-            "modules.bai9_ai_labor_market",
-            "bai09_lao_dong_ai",
-            "bai9_ai_labor_market",
-        ],
-        menu
-    )
+    st.divider()
+    st.caption("Dữ liệu: NSO, MoST, MIC, MPI, WB, GII")
 
-elif menu == "🎲 Bài 10 — Stochastic SP":
-    render_module(
-        [
-            "modules.bai10_stochastic_programming",
-            "bai10_stochastic_sp",
-            "bai10_stochastic_programming",
-        ],
-        menu
-    )
 
-elif menu == "🤖 Bài 11 — Q-learning RL":
-    render_module(
-        [
-            "modules.bai11_qlearning_policy",
-            "bai11_q_learning_rl",
-            "bai11_qlearning_policy",
-        ],
-        menu
-    )
+# =========================
+# ĐIỀU HƯỚNG NỘI DUNG
+# =========================
 
-elif menu == "🧠 Bài 12 — AIDEOM tích hợp":
-    render_module(
-        [
-            "modules.bai12_aideom_vn_integrated",
-            "bai12_aideom_vn",
-            "bai12_aideom_vn_integrated",
-        ],
-        menu
-    )
+if selected_key == "home":
+    show_home_page()
 
 else:
-    module_dang_bo_sung(menu)
+    render_module(
+        selected_paths,
+        selected_label
+    )
