@@ -539,7 +539,104 @@ def set_page(page_key, label, paths):
     st.session_state.selected_label = label
     st.session_state.selected_paths = paths
 
+# =========================
+# TRANG CHỦ
+# =========================
 
+def show_home_page():
+    st.markdown(
+        """
+        <div class="card">
+            <h1>🇻🇳 VN AIDEOM-VN</h1>
+            <h3>AI-Driven Decision Optimization Model for Vietnam</h3>
+            <p>
+            Web app giải 12 bài mô hình ra quyết định phát triển kinh tế Việt Nam
+            trong kỷ nguyên AI, sử dụng Python, Streamlit và các mô hình tối ưu hóa.
+            </p>
+            <span class="pill">Decision Models</span>
+            <span class="pill">Vietnam Economy</span>
+            <span class="pill">AI</span>
+            <span class="pill">Streamlit</span>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("GDP 2025", "514,0 tỷ USD", "+8,02%")
+    col2.metric("Kinh tế số/GDP", "≈19,5%", "+1,2 điểm %")
+    col3.metric("FDI 2025", "27,6 tỷ USD", "+8,9%")
+    col4.metric("GDP/người 2025", "5.026 USD", "+6,9%")
+
+    st.markdown("## 📚 Cấu trúc 12 bài tập")
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.markdown(
+            """
+            <div class="card">
+                <h3>🟢 Nhóm Dễ</h3>
+                <h4>Bài 1–3</h4>
+                <p>
+                Hàm sản xuất Cobb-Douglas, quy hoạch tuyến tính đơn giản,
+                và chỉ số ưu tiên ngành.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with c2:
+        st.markdown(
+            """
+            <div class="card">
+                <h3>🟡 Nhóm Trung bình</h3>
+                <h4>Bài 4–6</h4>
+                <p>
+                LP ngành-vùng, MIP lựa chọn dự án và TOPSIS xếp hạng vùng.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with c3:
+        st.markdown(
+            """
+            <div class="card">
+                <h3>🟠 Nhóm Khá khó</h3>
+                <h4>Bài 7–9</h4>
+                <p>
+                NSGA-II Pareto, tối ưu động và mô phỏng thị trường lao động AI.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    with c4:
+        st.markdown(
+            """
+            <div class="card">
+                <h3>🔴 Nhóm Khó</h3>
+                <h4>Bài 10–12</h4>
+                <p>
+                Stochastic Programming, Q-learning và dashboard tích hợp AIDEOM-VN.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    st.markdown("## 🧭 Hướng dẫn sử dụng")
+
+    st.info(
+        "Ở sidebar bên trái, chọn bài theo từng nhóm từ dễ đến khó. "
+        "Các bài đã có file module `.py` sẽ hiển thị phần giải chi tiết. "
+        "Các bài chưa có module sẽ hiện thông báo bổ sung sau."
+    )
 # =========================
 # SIDEBAR HIỂN THỊ TOÀN BỘ BÀI
 # =========================
