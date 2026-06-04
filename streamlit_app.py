@@ -21,53 +21,263 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+        /* =========================
+           TOÀN BỘ NỀN APP
+        ========================= */
+
         .stApp {
-            background: linear-gradient(135deg, #0f172a 0%, #111827 45%, #020617 100%);
-            color: #f8fafc;
-        }
-
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #111827 0%, #1e293b 100%);
-            border-right: 1px solid rgba(255,255,255,0.08);
-        }
-
-        h1, h2, h3 {
-            color: #f8fafc !important;
-            font-weight: 800 !important;
+            background: #f6f8fb;
+            color: #0f172a;
         }
 
         .block-container {
             padding-top: 2rem;
             padding-bottom: 3rem;
+            max-width: 1280px;
         }
 
-        .card {
-            background: rgba(15, 23, 42, 0.86);
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 22px;
-            padding: 24px;
-            margin-bottom: 18px;
-            box-shadow: 0 10px 35px rgba(0,0,0,0.28);
+        /* =========================
+           SIDEBAR
+        ========================= */
+
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-right: 1px solid #e5e7eb;
+            box-shadow: 8px 0 24px rgba(15, 23, 42, 0.04);
         }
+
+        section[data-testid="stSidebar"] * {
+            color: #111827 !important;
+        }
+
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            color: #0f172a !important;
+            font-weight: 800 !important;
+        }
+
+        section[data-testid="stSidebar"] .stCaption,
+        section[data-testid="stSidebar"] small {
+            color: #64748b !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 9px 11px;
+            margin-bottom: 7px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+            transition: all 0.18s ease;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
+            border-color: #0f766e;
+            background: #ecfdf5;
+            transform: translateX(2px);
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] {
+            background: #ffffff;
+            border-radius: 14px;
+        }
+
+        /* =========================
+           TIÊU ĐỀ
+        ========================= */
+
+        h1 {
+            color: #0f172a !important;
+            font-weight: 850 !important;
+            letter-spacing: -0.035em;
+        }
+
+        h2 {
+            color: #1e293b !important;
+            font-weight: 800 !important;
+            letter-spacing: -0.02em;
+        }
+
+        h3 {
+            color: #334155 !important;
+            font-weight: 750 !important;
+        }
+
+        p, li, span, label {
+            color: #334155;
+        }
+
+        /* =========================
+           CARD CHÍNH
+        ========================= */
+
+        .card {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 24px;
+            padding: 26px;
+            margin-bottom: 20px;
+            box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+        }
+
+        .card h1,
+        .card h2,
+        .card h3 {
+            color: #0f172a !important;
+        }
+
+        .card p {
+            color: #475569 !important;
+            font-size: 15.5px;
+            line-height: 1.7;
+        }
+
+        /* =========================
+           PILL / TAG
+        ========================= */
 
         .pill {
             display: inline-block;
-            padding: 6px 13px;
+            padding: 7px 14px;
             border-radius: 999px;
-            background: linear-gradient(90deg, #10b981, #06b6d4);
-            color: white;
-            font-weight: 700;
+            background: #e0f2fe;
+            color: #0369a1 !important;
+            font-weight: 750;
             font-size: 13px;
             margin-right: 8px;
             margin-bottom: 8px;
+            border: 1px solid #bae6fd;
         }
 
+        /* =========================
+           METRIC BOX
+        ========================= */
+
         div[data-testid="stMetric"] {
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 18px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
             padding: 18px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
         }
+
+        div[data-testid="stMetricLabel"] {
+            color: #64748b !important;
+            font-weight: 600;
+        }
+
+        div[data-testid="stMetricValue"] {
+            color: #0f172a !important;
+            font-weight: 850;
+        }
+
+        div[data-testid="stMetricDelta"] {
+            color: #0f766e !important;
+            font-weight: 700;
+        }
+
+        /* =========================
+           TABS
+        ========================= */
+
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .stTabs [data-baseweb="tab"] {
+            background: #ffffff;
+            border-radius: 999px;
+            padding: 10px 18px;
+            border: 1px solid #e5e7eb;
+            color: #334155 !important;
+            font-weight: 700;
+        }
+
+        .stTabs [aria-selected="true"] {
+            background: #0f766e !important;
+            color: #ffffff !important;
+            border-color: #0f766e !important;
+        }
+
+        /* =========================
+           BẢNG DATAFRAME
+        ========================= */
+
+        div[data-testid="stDataFrame"] {
+            border-radius: 18px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        /* =========================
+           BUTTON
+        ========================= */
+
+        .stButton > button {
+            border-radius: 14px;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #111827;
+            font-weight: 700;
+            padding: 0.65rem 1rem;
+            transition: all 0.18s ease;
+        }
+
+        .stButton > button:hover {
+            border-color: #0f766e;
+            color: #0f766e;
+            background: #ecfdf5;
+            transform: translateY(-1px);
+        }
+
+        /* =========================
+           INFO / WARNING / ERROR BOX
+        ========================= */
+
+        div[data-testid="stAlert"] {
+            border-radius: 16px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+        }
+
+        /* =========================
+           INPUTS
+        ========================= */
+
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div {
+            border-radius: 14px !important;
+            border-color: #d1d5db !important;
+            background-color: #ffffff !important;
+        }
+
+        input {
+            color: #111827 !important;
+        }
+
+        /* =========================
+           PLOTLY / CHART KHUNG
+        ========================= */
+
+        div[data-testid="stPlotlyChart"] {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        /* =========================
+           DIVIDER
+        ========================= */
+
+        hr {
+            border-color: #e5e7eb !important;
+        }
+
     </style>
     """,
     unsafe_allow_html=True
