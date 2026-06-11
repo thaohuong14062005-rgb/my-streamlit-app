@@ -1,6 +1,6 @@
 # bai01_cobb_douglas.py
 
-
+import os
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -10,16 +10,26 @@ import plotly.graph_objects as go
 
 # =========================================================
 # BÀI 1 — HÀM SẢN XUẤT COBB-DOUGLAS MỞ RỘNG
-# Hiển thị từ 1.4.1 đến 1.5, không dùng mô hình 3D
+# Dữ liệu chính: vietnam_macro_2020_2025.csv
+# Hiển thị: 1.4.1 đến 1.5
+# Không dùng mô hình 3D
 # =========================================================
 
 
-def get_default_data():
+# ---------------------------------------------------------
+# 1. DỮ LIỆU BỔ SUNG THEO BẢNG ĐỀ BÀI
+# ---------------------------------------------------------
+def get_input_table_from_assignment():
+    """
+    Bảng dữ liệu theo đề bài.
+    Y và D sẽ ưu tiên lấy từ vietnam_macro_2020_2025.csv nếu có.
+    K, L, AI, H lấy theo bảng đề bài.
+    """
     return pd.DataFrame(
         {
             "Year": [2020, 2021, 2022, 2023, 2024, 2025],
             "GDP_trillion_VND": [8044.4, 8487.5, 9513.3, 10221.8, 11511.9, 12847.6],
-            "K": [16500, 17800, 19600, 21300, 23500, 25900],
+            "K": [16500.0, 17800.0, 19600.0, 21300.0, 23500.0, 25900.0],
             "L": [53.6, 50.5, 51.7, 52.4, 52.9, 53.4],
             "D": [12.0, 12.7, 14.3, 16.5, 18.3, 19.5],
             "AI": [55.6, 60.2, 65.4, 67.0, 73.8, 80.1],
@@ -28,20 +38,23 @@ def get_default_data():
     )
 
 
-def parse_vietnamese_number(x):
+# ---------------------------------------------------------
+# 2. XỬ LÝ SỐ LIỆU
+# ---------------------------------------------------------
+def parse_vietnamese_number(value):
     """
-    Chuyển số kiểu Việt Nam:
+    Chuyển định dạng số kiểu Việt Nam sang float:
     '8.044,4' -> 8044.4
-    '16.500' -> 16500
-    '12,7' -> 12.7
+    '16.500'  -> 16500.0
+    '12,7'    -> 12.7
     """
-    if pd.isna(x):
+    if pd.isna(value):
         return np.nan
 
-    if isinstance(x, (int, float, np.integer, np.floating)):
-        return float(x)
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return float(value)
 
-    text = str(x).strip()
+    text = str(value).strip()
 
     if text == "":
         return np.nan
@@ -61,79 +74,104 @@ def parse_vietnamese_number(x):
         return np.nan
 
 
-def load_data():
+def find_data_file(filename):
     """
-    Sử dụng trực tiếp bảng dữ liệu tổng hợp Việt Nam 2020-2025 theo đề bài.
-    Không đọc file CSV bên ngoài để tránh lỗi thiếu file trên Streamlit/GitHub.
+    Tìm file CSV ở các vị trí thường gặp khi chạy Streamlit trên GitHub.
     """
-    return get_default_data()
-
     possible_paths = [
-        "vietnam_macro_2020_2025.csv",
-        "./vietnam_macro_2020_2025.csv",
-        "data/vietnam_macro_2020_2025.csv",
-        "./data/vietnam_macro_2020_2025.csv",
+        filename,
+        f"./{filename}",
+        f"data/{filename}",
+        f"./data/{filename}",
+        f"datasets/{filename}",
+        f"./datasets/{filename}",
     ]
 
-    csv_path = None
     for path in possible_paths:
         if os.path.exists(path):
-            csv_path = path
-            break
+            return path
+
+    return None
+
+
+def load_data():
+    """
+    Đọc vietnam_macro_2020_2025.csv để lấy GDP và tỷ trọng kinh tế số D.
+    Các biến K, L, AI, H lấy theo bảng đề bài.
+    Nếu CSV không có trên môi trường chạy, vẫn dùng bảng đề bài để app không bị lỗi.
+    """
+    assignment_df = get_input_table_from_assignment()
+
+    csv_path = find_data_file("vietnam_macro_2020_2025.csv")
 
     if csv_path is None:
-        return default_df, "default", None
+        return assignment_df, None
 
     try:
-        df = pd.read_csv(csv_path)
+        macro_df = pd.read_csv(csv_path)
 
-        rename_map = {
-            "year": "Year",
-            "Year": "Year",
-            "GDP": "GDP_trillion_VND",
-            "Y": "GDP_trillion_VND",
-            "GDP_trillion_VND": "GDP_trillion_VND",
-            "GDP_nghin_ty_VND": "GDP_trillion_VND",
-            "K": "K",
-            "Capital": "K",
-            "L": "L",
-            "Labor": "L",
-            "D": "D",
-            "Digital": "D",
-            "AI": "AI",
-            "H": "H",
-            "HumanCapital": "H",
-        }
+        # Chuẩn hóa tên cột năm
+        if "year" in macro_df.columns and "Year" not in macro_df.columns:
+            macro_df = macro_df.rename(columns={"year": "Year"})
 
-        df = df.rename(columns={col: rename_map.get(col, col) for col in df.columns})
+        # Chỉ lấy các cột cần cho Bài 1
+        needed_cols = ["Year", "GDP_trillion_VND", "digital_economy_share_GDP_pct"]
+        available_cols = [col for col in needed_cols if col in macro_df.columns]
 
-        required_cols = ["Year", "GDP_trillion_VND", "K", "L", "D", "AI", "H"]
+        macro_df = macro_df[available_cols].copy()
 
-        for col in required_cols:
-            if col not in df.columns:
-                if len(df) == len(default_df):
-                    df[col] = default_df[col].values
-                else:
-                    df[col] = np.nan
+        for col in macro_df.columns:
+            macro_df[col] = macro_df[col].apply(parse_vietnamese_number)
 
-        df = df[required_cols].copy()
+        macro_df = macro_df.dropna(subset=["Year"]).copy()
+        macro_df["Year"] = macro_df["Year"].astype(int)
 
-        for col in required_cols:
-            df[col] = df[col].apply(parse_vietnamese_number)
+        # Ghép với bảng đề bài để bổ sung K, L, AI, H
+        df = assignment_df.drop(columns=["GDP_trillion_VND", "D"]).merge(
+            macro_df,
+            on="Year",
+            how="left",
+        )
+
+        # Nếu CSV thiếu GDP hoặc D ở năm nào đó thì lấy lại từ bảng đề bài
+        fallback = assignment_df[["Year", "GDP_trillion_VND", "D"]].copy()
+
+        df = df.merge(
+            fallback,
+            on="Year",
+            how="left",
+            suffixes=("", "_fallback"),
+        )
+
+        if "GDP_trillion_VND" not in df.columns:
+            df["GDP_trillion_VND"] = df["GDP_trillion_VND_fallback"]
+        else:
+            df["GDP_trillion_VND"] = df["GDP_trillion_VND"].fillna(df["GDP_trillion_VND_fallback"])
+
+        if "digital_economy_share_GDP_pct" in df.columns:
+            df["D"] = df["digital_economy_share_GDP_pct"].fillna(df["D_fallback"])
+        else:
+            df["D"] = df["D_fallback"]
+
+        df = df[["Year", "GDP_trillion_VND", "K", "L", "D", "AI", "H"]].copy()
+
+        for col in ["GDP_trillion_VND", "K", "L", "D", "AI", "H"]:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
         df = df.dropna().sort_values("Year").reset_index(drop=True)
 
         if len(df) < 2:
-            return default_df, "default_error", csv_path
+            return assignment_df, None
 
-        df["Year"] = df["Year"].astype(int)
-
-        return df, "csv", csv_path
+        return df, csv_path
 
     except Exception:
-        return default_df, "default_error", csv_path
+        return assignment_df, None
 
 
+# ---------------------------------------------------------
+# 3. TÍNH MÔ HÌNH COBB-DOUGLAS
+# ---------------------------------------------------------
 def compute_model(df, alpha, beta, gamma, delta, theta):
     model_df = df.copy()
 
@@ -144,7 +182,7 @@ def compute_model(df, alpha, beta, gamma, delta, theta):
     AI = model_df["AI"].astype(float).values
     H = model_df["H"].astype(float).values
 
-    denominator = (
+    production_base = (
         (K ** alpha)
         * (L ** beta)
         * (D ** gamma)
@@ -152,18 +190,18 @@ def compute_model(df, alpha, beta, gamma, delta, theta):
         * (H ** theta)
     )
 
-    A_t = Y / denominator
+    A_t = Y / production_base
     A_mean = np.mean(A_t)
-    Y_hat = A_mean * denominator
+    Y_hat = A_mean * production_base
 
     mape = np.mean(np.abs((Y - Y_hat) / Y)) * 100
 
     model_df["TFP_A"] = A_t
+    model_df["TFP_growth_percent"] = model_df["TFP_A"].pct_change() * 100
     model_df["A_mean"] = A_mean
     model_df["GDP_hat"] = Y_hat
     model_df["Error"] = Y - Y_hat
     model_df["APE_percent"] = np.abs((Y - Y_hat) / Y) * 100
-    model_df["TFP_growth_percent"] = model_df["TFP_A"].pct_change() * 100
 
     return model_df, A_t, A_mean, Y_hat, mape
 
@@ -212,7 +250,7 @@ def growth_decomposition(model_df, alpha, beta, gamma, delta, theta):
                 "Vốn vật chất",
                 "Lao động",
                 "Số hóa / kinh tế số",
-                "Năng lực AI / doanh nghiệp số",
+                "Năng lực AI / doanh nghiệp công nghệ số",
                 "Vốn nhân lực số",
                 "Năng suất nhân tố tổng hợp",
             ],
@@ -295,6 +333,9 @@ def forecast_2030(
     return forecast_df
 
 
+# ---------------------------------------------------------
+# 4. HÀM PHÂN TÍCH TỰ ĐỘNG
+# ---------------------------------------------------------
 def get_tfp_comment(model_df):
     first_a = model_df["TFP_A"].iloc[0]
     last_a = model_df["TFP_A"].iloc[-1]
@@ -332,17 +373,26 @@ def get_largest_new_factor(avg_contrib_df):
     )
 
 
+def format_number(value, digits=2):
+    if pd.isna(value):
+        return "NA"
+    return f"{value:,.{digits}f}"
+
+
+# ---------------------------------------------------------
+# 5. GIAO DIỆN STREAMLIT
+# ---------------------------------------------------------
 def render():
     st.markdown(
         """
         <style>
-        .main-title {
+        .bai1-title {
             font-size: 2.05rem;
             font-weight: 850;
             line-height: 1.25;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.25rem;
         }
-        .sub-title {
+        .bai1-subtitle {
             color: #cbd5e1;
             font-size: 1rem;
             margin-bottom: 1rem;
@@ -356,21 +406,20 @@ def render():
     )
 
     st.markdown(
-        '<div class="main-title">🌱 Bài 1 — Hàm sản xuất Cobb-Douglas mở rộng</div>',
+        '<div class="bai1-title">🌱 Bài 1 — Hàm sản xuất Cobb-Douglas mở rộng</div>',
         unsafe_allow_html=True,
     )
-
     st.markdown(
-        '<div class="sub-title">Ước lượng TFP, dự báo GDP, phân rã tăng trưởng và thảo luận chính sách cho Việt Nam giai đoạn 2020-2025, mô phỏng đến 2030.</div>',
+        '<div class="bai1-subtitle">Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP Việt Nam đến năm 2030.</div>',
         unsafe_allow_html=True,
     )
 
-    raw_df = load_data()
+    raw_df, csv_path = load_data()
 
     # =====================================================
     # SIDEBAR — THAM SỐ TƯƠNG TÁC
     # =====================================================
-    st.sidebar.header("⚙️ Tham số Bài 1")
+    st.sidebar.header("⚙️ Bài 1 — Tham số")
 
     st.sidebar.markdown("### Hệ số Cobb-Douglas")
 
@@ -385,7 +434,7 @@ def render():
     normalize = st.sidebar.checkbox(
         "Tự chuẩn hóa tổng hệ số = 1",
         value=False,
-        help="Bật lựa chọn này nếu muốn bảo đảm điều kiện lợi suất không đổi theo quy mô.",
+        help="Bật nếu muốn bảo đảm điều kiện lợi suất không đổi theo quy mô.",
     )
 
     if normalize and coef_sum > 0:
@@ -407,7 +456,6 @@ def render():
         30.0,
         0.5,
     )
-
     target_AI_2030 = st.sidebar.slider(
         "AI năm 2030 - Nghìn DN số",
         80.1,
@@ -415,7 +463,6 @@ def render():
         100.0,
         1.0,
     )
-
     target_H_2030 = st.sidebar.slider(
         "H năm 2030 - LĐ qua đào tạo (%)",
         29.2,
@@ -423,12 +470,13 @@ def render():
         35.0,
         0.5,
     )
-
     growth_K = st.sidebar.slider("Tăng trưởng K mỗi năm (%)", 0.0, 15.0, 6.0, 0.1) / 100
     growth_L = st.sidebar.slider("Tăng trưởng L mỗi năm (%)", -2.0, 10.0, 6.0, 0.1) / 100
     growth_TFP = st.sidebar.slider("Tăng trưởng TFP mỗi năm (%)", -2.0, 5.0, 1.2, 0.1) / 100
 
-   
+    # =====================================================
+    # TÍNH TOÁN
+    # =====================================================
     model_df, A_t, A_mean, Y_hat, mape = compute_model(
         raw_df,
         alpha,
@@ -470,31 +518,50 @@ def render():
         largest_factor_value,
         largest_factor_share,
     ) = get_largest_new_factor(avg_contrib_df)
-with st.expander("📊 Bảng dữ liệu tổng hợp Việt Nam 2020-2025", expanded=False):
-    display_df = raw_df.rename(
-        columns={
-            "Year": "Năm",
-            "GDP_trillion_VND": "Y (GDP, nghìn tỷ VND)",
-            "K": "K (vốn tích lũy, nghìn tỷ)",
-            "L": "L (triệu lao động)",
-            "D": "D (KTS/GDP, %)",
-            "AI": "AI (nghìn DN số)",
-            "H": "H (LĐ qua đào tạo, %)",
-        }
-    )
 
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    # =====================================================
+    # BẢNG DỮ LIỆU ĐẦU VÀO
+    # =====================================================
+    with st.expander("📊 Bảng dữ liệu sử dụng cho Bài 1", expanded=False):
+        data_source_text = (
+            f"Dữ liệu GDP và tỷ trọng kinh tế số được lấy từ `{csv_path}`; "
+            "K, L, AI, H lấy theo bảng đề bài."
+            if csv_path is not None
+            else "Sử dụng bảng dữ liệu tổng hợp theo đề bài."
+        )
 
-    st.caption(
-        "Hệ số đề xuất có thể tinh chỉnh: α = 0,33; β = 0,42; γ = 0,10; δ = 0,08; θ = 0,07."
-    )
+        st.caption(data_source_text)
+
+        display_df = model_df[["Year", "GDP_trillion_VND", "K", "L", "D", "AI", "H"]].copy()
+        display_df = display_df.rename(
+            columns={
+                "Year": "Năm",
+                "GDP_trillion_VND": "Y (GDP, nghìn tỷ VND)",
+                "K": "K (vốn tích lũy, nghìn tỷ)",
+                "L": "L (triệu LĐ)",
+                "D": "D (KTS/GDP, %)",
+                "AI": "AI (nghìn DN số)",
+                "H": "H (LĐ qua ĐT, %)",
+            }
+        )
+
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        st.caption(
+            f"Hệ số đang sử dụng: α = {alpha:.2f}; β = {beta:.2f}; γ = {gamma:.2f}; "
+            f"δ = {delta:.2f}; θ = {theta:.2f}. Tổng hệ số = {coef_sum:.3f}."
+        )
+
+    # =====================================================
+    # TABS CHÍNH
+    # =====================================================
     tabs = st.tabs(
         [
-            "Ước lượng TFP",
-            "Kiểm định dự báo GDP",
-            "Phân rã nguồn tăng trưởng",
-            "Mô phỏng kịch bản 2030",
-            "Hàm ý chính sách",
+            "📈 1.4.1 TFP",
+            "🎯 1.4.2 MAPE",
+            "🧩 1.4.3 Phân rã",
+            "🚀 1.4.4 Dự báo 2030",
+            "🏛️ 1.5 Chính sách",
         ]
     )
 
@@ -502,14 +569,14 @@ with st.expander("📊 Bảng dữ liệu tổng hợp Việt Nam 2020-2025", ex
     # TAB 1.4.1 — TFP
     # =====================================================
     with tabs[0]:
-        st.subheader("Ước lượng năng suất nhân tố tổng hợp Aₜ")
+        st.subheader("1.4.1. Ước lượng năng suất nhân tố tổng hợp Aₜ")
 
         st.markdown(
             """
-           **Yêu cầu:** Sử dụng bảng dữ liệu tổng hợp Việt Nam giai đoạn 2020-2025.
-Dùng `numpy` và `pandas`, ước lượng năng suất nhân tố tổng hợp `A_t`
-cho mỗi năm bằng cách giải ngược từ hàm sản xuất. Vẽ đồ thị `A_t`
-theo năm và bình luận xu hướng.
+            **Yêu cầu:** Đọc dữ liệu `vietnam_macro_2020_2025.csv`.
+            Sử dụng `numpy` và `pandas`, ước lượng năng suất nhân tố tổng hợp `A_t`
+            cho mỗi năm bằng cách giải ngược từ hàm sản xuất. Vẽ đồ thị `A_t`
+            theo năm và bình luận xu hướng.
             """
         )
 
@@ -547,10 +614,10 @@ theo năm và bình luận xu hướng.
 
         st.dataframe(tfp_table, use_container_width=True, hide_index=True)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("TFP năm 2020", f"{model_df['TFP_A'].iloc[0]:,.3f}")
-        col2.metric("TFP năm 2025", f"{model_df['TFP_A'].iloc[-1]:,.3f}")
-        col3.metric("Thay đổi TFP 2020-2025", f"{tfp_change:.2f}%")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("TFP năm đầu", f"{model_df['TFP_A'].iloc[0]:,.3f}")
+        c2.metric("TFP năm cuối", f"{model_df['TFP_A'].iloc[-1]:,.3f}")
+        c3.metric("Thay đổi TFP", f"{tfp_change:.2f}%")
 
         fig_tfp = px.line(
             model_df,
@@ -567,12 +634,27 @@ theo năm và bình luận xu hướng.
         )
         st.plotly_chart(fig_tfp, use_container_width=True)
 
-   
+        fig_tfp_growth = px.bar(
+            model_df.dropna(subset=["TFP_growth_percent"]),
+            x="Year",
+            y="TFP_growth_percent",
+            text=model_df.dropna(subset=["TFP_growth_percent"])["TFP_growth_percent"].round(2),
+            title="Tăng trưởng TFP theo năm",
+        )
+        fig_tfp_growth.update_traces(textposition="outside")
+        fig_tfp_growth.update_layout(
+            xaxis_title="Năm",
+            yaxis_title="Tăng trưởng TFP (%)",
+            height=430,
+        )
+        st.plotly_chart(fig_tfp_growth, use_container_width=True)
+
+        st.markdown("### ✅ Câu trả lời 1.4.1")
 
         st.success(
             f"TFP A_t được tính bằng cách giải ngược từ hàm sản xuất Cobb-Douglas mở rộng. "
             f"Kết quả cho thấy TFP giai đoạn 2020-2025 có xu hướng **{tfp_trend}**, "
-            f"thay đổi khoảng **{tfp_change:.2f}%** từ năm 2020 đến năm 2025. "
+            f"thay đổi khoảng **{tfp_change:.2f}%**. "
             f"Điều này cho thấy **{tfp_meaning}**"
         )
 
@@ -580,13 +662,13 @@ theo năm và bình luận xu hướng.
     # TAB 1.4.2 — MAPE
     # =====================================================
     with tabs[1]:
-        st.subheader("Dự báo GDP với A trung bình và báo cáo MAPE")
+        st.subheader("1.4.2. Dự báo GDP với A trung bình và báo cáo MAPE")
 
         st.markdown(
             """
             **Yêu cầu:** Lấy `A_t = trung bình A` của giai đoạn 2020-2025,
             tính sản lượng dự báo `Ŷ_t` và so sánh với `Y` thực tế.
-            Báo cáo chỉ tiêu sai số MAPE.
+            Báo cáo MAPE.
             """
         )
 
@@ -605,19 +687,19 @@ theo năm và bình luận xu hướng.
         pred_table = pred_table.rename(
             columns={
                 "Year": "Năm",
-                "GDP_trillion_VND": "GDP thực tế",
+                "GDP_trillion_VND": "GDP thực tế Y_t",
                 "GDP_hat": "GDP dự báo Ŷ_t",
-                "Error": "Sai số Y - Ŷ",
+                "Error": "Sai số Y_t - Ŷ_t",
                 "APE_percent": "APE (%)",
             }
         )
 
         st.dataframe(pred_table, use_container_width=True, hide_index=True)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("A trung bình", f"{A_mean:,.3f}")
-        col2.metric("MAPE", f"{mape:.2f}%")
-        col3.metric("Sai số tuyệt đối TB", f"{model_df['Error'].abs().mean():,.1f}")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("A trung bình", f"{A_mean:,.3f}")
+        c2.metric("MAPE", f"{mape:.2f}%")
+        c3.metric("Sai số tuyệt đối TB", f"{model_df['Error'].abs().mean():,.1f}")
 
         fig_compare = go.Figure()
 
@@ -661,11 +743,11 @@ theo năm và bình luận xu hướng.
         fig_ape.update_layout(
             xaxis_title="Năm",
             yaxis_title="APE (%)",
-            height=450,
+            height=430,
         )
         st.plotly_chart(fig_ape, use_container_width=True)
 
-       
+        st.markdown("### ✅ Câu trả lời 1.4.2")
 
         if mape < 5:
             quality = "mức sai số thấp, mô hình khớp khá tốt với dữ liệu thực tế."
@@ -676,15 +758,15 @@ theo năm và bình luận xu hướng.
 
         st.success(
             f"A trung bình giai đoạn 2020-2025 là **{A_mean:.3f}**. "
-            f"Khi sử dụng A trung bình để dự báo GDP, chỉ tiêu MAPE đạt **{mape:.2f}%**. "
+            f"Khi dùng A trung bình để dự báo GDP, MAPE đạt **{mape:.2f}%**. "
             f"Điều này cho thấy {quality}"
         )
 
     # =====================================================
-    # TAB 1.4.3 — PHÂN RÃ
+    # TAB 1.4.3 — PHÂN RÃ TĂNG TRƯỞNG
     # =====================================================
     with tabs[2]:
-        st.subheader("Phân rã tăng trưởng GDP giai đoạn 2020-2025")
+        st.subheader("1.4.3. Phân rã tăng trưởng GDP giai đoạn 2020-2025")
 
         st.markdown(
             """
@@ -705,10 +787,10 @@ theo năm và bình luận xu hướng.
         st.markdown("### Bảng đóng góp bình quân")
         st.dataframe(avg_contrib_df, use_container_width=True, hide_index=True)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Tăng trưởng GDP bình quân", f"{avg_growth:.2f}%")
-        col2.metric("Yếu tố mới đóng góp nổi bật", largest_factor)
-        col3.metric("Đóng góp của yếu tố này", f"{largest_factor_value:.2f} điểm %")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Tăng trưởng GDP bình quân", f"{avg_growth:.2f}%/năm")
+        c2.metric("Yếu tố mới nổi bật", largest_factor)
+        c3.metric("Đóng góp của yếu tố này", f"{largest_factor_value:.2f} điểm %")
 
         contribution_cols = [
             "K - Vốn vật chất (%)",
@@ -757,7 +839,7 @@ theo năm và bình luận xu hướng.
         )
         st.plotly_chart(fig_avg, use_container_width=True)
 
-   
+        st.markdown("### ✅ Câu trả lời 1.4.3")
 
         st.success(
             f"Tăng trưởng GDP bình quân giai đoạn 2020-2025 theo dạng log đạt khoảng **{avg_growth:.2f}%/năm**. "
@@ -765,25 +847,25 @@ theo năm và bình luận xu hướng.
             f"**{largest_factor} - {largest_factor_name}**, với mức đóng góp bình quân khoảng "
             f"**{largest_factor_value:.2f} điểm phần trăm**, tương đương khoảng "
             f"**{largest_factor_share:.2f}%** trong tăng trưởng GDP bình quân. "
-            f"Kết quả này cho thấy các yếu tố số hóa, AI và nhân lực số có vai trò quan trọng trong mô hình tăng trưởng mới."
+            f"Ngoài ra, phần TFP phản ánh phần tăng trưởng không được giải thích trực tiếp bởi K, L, D, AI và H."
         )
 
     # =====================================================
     # TAB 1.4.4 — DỰ BÁO 2030
     # =====================================================
     with tabs[3]:
-        st.subheader("Mô phỏng và dự báo GDP Việt Nam đến năm 2030")
+        st.subheader("1.4.4. Mô phỏng và dự báo GDP Việt Nam năm 2030")
 
         st.markdown(
             """
-            **Yêu cầu:** Giả sử kịch bản đến 2030:
-            `D` tăng lên 30%, `AI = 100` nghìn DN, `H = 35%`,
+            **Yêu cầu:** Giả sử kịch bản đến năm 2030:
+            `D` tăng lên 30%, `AI = 100` nghìn doanh nghiệp số, `H = 35%`,
             `K` và `L` tăng trưởng đều 6%/năm, `TFP` tăng 1,2%/năm.
             Hãy mô phỏng và dự báo GDP Việt Nam năm 2030.
             """
         )
 
-        st.info("Bạn có thể chỉnh trực tiếp các giả định của kịch bản 2030 trong sidebar bên trái.")
+        st.info("Bạn có thể thay đổi các giả định của kịch bản 2030 trong sidebar bên trái.")
 
         st.dataframe(forecast_df, use_container_width=True, hide_index=True)
 
@@ -792,11 +874,11 @@ theo năm và bình luận xu hướng.
             y_2030 = forecast_df.loc[forecast_df["Year"] == 2030, "GDP_forecast"].iloc[0]
             increase_2030 = (y_2030 / y_2025 - 1) * 100
 
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("GDP thực tế 2025", f"{y_2025:,.1f}")
-            col2.metric("GDP dự báo 2030", f"{y_2030:,.1f}")
-            col3.metric("Tăng so với 2025", f"{increase_2030:.2f}%")
-            col4.metric("D mục tiêu 2030", f"{target_D_2030:.1f}%")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("GDP thực tế 2025", f"{y_2025:,.1f}")
+            c2.metric("GDP dự báo 2030", f"{y_2030:,.1f}")
+            c3.metric("Tăng so với 2025", f"{increase_2030:.2f}%")
+            c4.metric("D mục tiêu 2030", f"{target_D_2030:.1f}%")
 
             actual_df = model_df[["Year", "GDP_trillion_VND"]].rename(
                 columns={"GDP_trillion_VND": "GDP"}
@@ -844,21 +926,22 @@ theo năm và bình luận xu hướng.
             fig_inputs_future.update_layout(height=520)
             st.plotly_chart(fig_inputs_future, use_container_width=True)
 
-        
+            st.markdown("### ✅ Câu trả lời 1.4.4")
 
             st.success(
                 f"Với kịch bản hiện tại, GDP Việt Nam năm 2030 được dự báo đạt khoảng "
                 f"**{y_2030:,.1f} nghìn tỷ VND**. "
                 f"So với GDP năm 2025 là **{y_2025:,.1f} nghìn tỷ VND**, mức tăng tương ứng khoảng "
                 f"**{increase_2030:.2f}%**. "
-                f"Kết quả này phụ thuộc vào giả định tăng trưởng đều của K, L, mức tăng TFP và khả năng đạt mục tiêu "
-                f"D = {target_D_2030:.1f}%, AI = {target_AI_2030:.1f} nghìn DN số, H = {target_H_2030:.1f}% vào năm 2030."
+                f"Kết quả này phụ thuộc vào khả năng duy trì tăng trưởng K = {growth_K * 100:.1f}%/năm, "
+                f"L = {growth_L * 100:.1f}%/năm, TFP = {growth_TFP * 100:.1f}%/năm và đạt các mục tiêu "
+                f"D = {target_D_2030:.1f}%, AI = {target_AI_2030:.1f} nghìn DN số, H = {target_H_2030:.1f}%."
             )
         else:
             st.warning("Không đủ dữ liệu để dự báo đến năm 2030.")
 
     # =====================================================
-    # TAB 1.5 — CHÍNH SÁCH
+    # TAB 1.5 — THẢO LUẬN CHÍNH SÁCH
     # =====================================================
     with tabs[4]:
         st.subheader("1.5. Câu hỏi thảo luận chính sách")
@@ -874,10 +957,11 @@ theo năm và bình luận xu hướng.
             f"""
             Điều này cho thấy **{tfp_meaning}**
 
-            Về mặt chính sách, TFP là chỉ báo quan trọng phản ánh chất lượng tăng trưởng.
-            Nếu GDP tăng chủ yếu nhờ tăng vốn và lao động, tăng trưởng có thể mở rộng về quy mô nhưng chưa chắc bền vững.
-            Ngược lại, nếu TFP tăng, nền kinh tế đang tạo ra nhiều sản lượng hơn từ cùng một lượng đầu vào,
-            phản ánh cải thiện về công nghệ, quản trị, tổ chức sản xuất, năng lực số và hiệu quả phân bổ nguồn lực.
+            Về mặt chính sách, TFP là chỉ báo phản ánh chất lượng tăng trưởng.
+            Khi TFP tăng, nền kinh tế tạo ra nhiều sản lượng hơn từ cùng một lượng đầu vào,
+            cho thấy hiệu quả sử dụng vốn, lao động, công nghệ, dữ liệu và kỹ năng số được cải thiện.
+            Nếu TFP đi ngang hoặc giảm, tăng trưởng có thể vẫn phụ thuộc nhiều vào mở rộng vốn và lao động,
+            trong khi chất lượng tăng trưởng chưa thực sự bền vững.
             """
         )
 
@@ -893,33 +977,37 @@ theo năm và bình luận xu hướng.
             Yếu tố này có mức đóng góp bình quân khoảng **{largest_factor_value:.2f} điểm phần trăm**,
             tương đương khoảng **{largest_factor_share:.2f}%** trong tăng trưởng GDP bình quân.
 
-            Nguyên nhân là đóng góp của một yếu tố trong mô hình Cobb-Douglas phụ thuộc vào hai thành phần:
+            Nguyên nhân là trong mô hình Cobb-Douglas, đóng góp của một yếu tố phụ thuộc vào hai phần:
             **tốc độ tăng của yếu tố đó** và **hệ số co giãn của nó trong hàm sản xuất**.
-            Nếu một biến như D, AI hoặc H tăng nhanh và có hệ số co giãn đủ lớn,
-            nó sẽ tạo ra đóng góp đáng kể vào tăng trưởng GDP.
+            Một yếu tố có tốc độ tăng nhanh và hệ số co giãn đủ lớn sẽ tạo ra đóng góp đáng kể hơn vào tăng trưởng.
 
-            Về ý nghĩa kinh tế, D phản ánh mức độ số hóa của nền kinh tế,
-            AI phản ánh năng lực công nghệ và số lượng doanh nghiệp số,
-            còn H phản ánh chất lượng nguồn nhân lực.
-            Ba yếu tố này có quan hệ bổ trợ: hạ tầng số và doanh nghiệp công nghệ chỉ phát huy hiệu quả khi có nhân lực số đủ tốt.
+            Về ý nghĩa kinh tế:
+            - D phản ánh mức độ mở rộng kinh tế số trong GDP.
+            - AI phản ánh năng lực công nghệ và quy mô doanh nghiệp công nghệ số.
+            - H phản ánh chất lượng nguồn nhân lực số.
+
+            Ba yếu tố này có quan hệ bổ trợ lẫn nhau. Hạ tầng và nền kinh tế số chỉ phát huy hiệu quả cao
+            khi doanh nghiệp có năng lực công nghệ và người lao động có kỹ năng phù hợp.
             """
         )
 
         st.markdown("## c) Mục tiêu Việt Nam đạt 30% kinh tế số/GDP vào 2030 có khả thi không? Cần ràng buộc gì?")
 
-        if target_D_2030 >= 30:
-            st.success(
-                "Trong kịch bản hiện tại, mục tiêu kinh tế số đạt 30% GDP vào năm 2030 được đưa vào mô hình và có thể đạt được về mặt mô phỏng."
-            )
-        else:
-            st.warning(
-                "Trong kịch bản hiện tại, D mục tiêu đang thấp hơn 30%, vì vậy chưa phản ánh đầy đủ mục tiêu kinh tế số đạt 30% GDP vào năm 2030."
-            )
-
         if not forecast_df.empty and 2030 in forecast_df["Year"].values:
             y_2030_policy = forecast_df.loc[forecast_df["Year"] == 2030, "GDP_forecast"].iloc[0]
         else:
             y_2030_policy = np.nan
+
+        if target_D_2030 >= 30:
+            st.success(
+                "Trong kịch bản hiện tại, mục tiêu kinh tế số đạt 30% GDP vào năm 2030 được đưa vào mô hình "
+                "và có cơ sở khả thi về mặt mô phỏng."
+            )
+        else:
+            st.warning(
+                "Trong kịch bản hiện tại, D mục tiêu đang thấp hơn 30%, vì vậy chưa phản ánh đầy đủ mục tiêu "
+                "kinh tế số đạt 30% GDP vào năm 2030."
+            )
 
         st.markdown(
             f"""
@@ -927,31 +1015,32 @@ theo năm và bình luận xu hướng.
             H đạt **{target_H_2030:.1f}%**, K và L duy trì tăng trưởng, đồng thời TFP tăng đều,
             GDP năm 2030 có thể đạt khoảng **{y_2030_policy:,.1f} nghìn tỷ VND**.
 
-            Tuy nhiên, mục tiêu 30% kinh tế số/GDP **không tự động khả thi** nếu chỉ tăng tỷ trọng kinh tế số trên giấy tờ.
-            Cần các ràng buộc chính sách sau:
+            Tuy nhiên, mục tiêu kinh tế số chiếm 30% GDP **không tự động đạt được** nếu chỉ tăng tỷ trọng D.
+            Cần bảo đảm các ràng buộc chính sách sau:
 
-            - Thứ nhất, hạ tầng số phải được đầu tư đồng bộ, bao gồm dữ liệu, nền tảng số, điện toán đám mây, băng rộng và an toàn thông tin.
-            - Thứ hai, số lượng doanh nghiệp công nghệ số và doanh nghiệp ứng dụng AI phải tăng thực chất, không chỉ tăng về số lượng đăng ký.
-            - Thứ ba, vốn nhân lực số phải tăng nhanh, vì công nghệ chỉ tạo năng suất khi người lao động có kỹ năng sử dụng.
-            - Thứ tư, TFP cần duy trì xu hướng tăng, nếu không tăng trưởng sẽ vẫn phụ thuộc chủ yếu vào vốn và lao động.
-            - Thứ năm, cần hoàn thiện thể chế dữ liệu, chính sách cạnh tranh, bảo vệ quyền riêng tư và khuyến khích đổi mới sáng tạo.
+            - **Hạ tầng số** phải được đầu tư đồng bộ, gồm dữ liệu, nền tảng số, điện toán đám mây, băng rộng và an toàn thông tin.
+            - **Doanh nghiệp công nghệ số và năng lực AI** phải tăng thực chất, không chỉ tăng về số lượng đăng ký.
+            - **Vốn nhân lực số H** phải cải thiện nhanh, vì công nghệ chỉ tạo năng suất khi lao động có kỹ năng sử dụng.
+            - **TFP phải duy trì xu hướng tăng**, nếu không tăng trưởng sẽ quay lại phụ thuộc chủ yếu vào vốn và lao động.
+            - **Thể chế dữ liệu và đổi mới sáng tạo** cần được hoàn thiện để giảm rủi ro phân mảnh dữ liệu, độc quyền nền tảng và đầu tư kém hiệu quả.
 
-            **Kết luận:** mục tiêu kinh tế số đạt 30% GDP vào năm 2030 là có cơ sở khả thi trong mô hình,
+            **Kết luận:** mục tiêu kinh tế số đạt 30% GDP vào năm 2030 là có khả năng đạt được trong mô hình,
             nhưng điều kiện then chốt là phải đồng thời nâng cấp **D, AI, H và TFP**.
-            Nếu chỉ tăng D mà không cải thiện AI, nhân lực số và năng suất tổng hợp,
+            Nếu chỉ tăng D mà không cải thiện năng lực AI, nhân lực số và năng suất tổng hợp,
             tác động đến tăng trưởng sẽ bị giới hạn.
             """
         )
 
-      
+        st.markdown("## ✅ Kết luận chung")
 
         st.info(
-            f"Mô hình Cobb-Douglas mở rộng cho thấy GDP Việt Nam giai đoạn 2020-2025 có thể được phân tích "
-            f"thông qua sáu nguồn đóng góp: K, L, D, AI, H và TFP. "
-            f"MAPE của mô hình dùng A trung bình là **{mape:.2f}%**. "
-            f"TFP có xu hướng **{tfp_trend}**. "
+            f"Mô hình Cobb-Douglas mở rộng cho phép phân tích GDP Việt Nam thông qua sáu nguồn đóng góp: "
+            f"K, L, D, AI, H và TFP. "
+            f"MAPE khi dùng A trung bình là **{mape:.2f}%**. "
+            f"TFP giai đoạn 2020-2025 có xu hướng **{tfp_trend}**. "
             f"Trong nhóm yếu tố mới, yếu tố nổi bật nhất là **{largest_factor} - {largest_factor_name}**. "
-            f"Kịch bản 2030 cho thấy mục tiêu kinh tế số 30% GDP có thể khả thi nếu đi kèm tăng trưởng TFP, AI và nhân lực số."
+            f"Kịch bản 2030 cho thấy mục tiêu kinh tế số 30% GDP có thể khả thi nếu đi kèm tăng trưởng TFP, "
+            f"mở rộng năng lực AI và nâng cao vốn nhân lực số."
         )
 
 
