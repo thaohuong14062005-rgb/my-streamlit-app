@@ -1,6 +1,6 @@
 # bai01_cobb_douglas.py
 
-import os
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -63,10 +63,10 @@ def parse_vietnamese_number(x):
 
 def load_data():
     """
-    Ưu tiên đọc file vietnam_macro_2020_2025.csv.
-    Nếu không có file hoặc lỗi định dạng, dùng dữ liệu mặc định theo đề bài.
+    Sử dụng trực tiếp bảng dữ liệu tổng hợp Việt Nam 2020-2025 theo đề bài.
+    Không đọc file CSV bên ngoài để tránh lỗi thiếu file trên Streamlit/GitHub.
     """
-    default_df = get_default_data()
+    return get_default_data()
 
     possible_paths = [
         "vietnam_macro_2020_2025.csv",
@@ -365,7 +365,7 @@ def render():
         unsafe_allow_html=True,
     )
 
-    raw_df, data_status, csv_path = load_data()
+    raw_df = load_data()
 
     # =====================================================
     # SIDEBAR — THAM SỐ TƯƠNG TÁC
@@ -428,13 +428,7 @@ def render():
     growth_L = st.sidebar.slider("Tăng trưởng L mỗi năm (%)", -2.0, 10.0, 6.0, 0.1) / 100
     growth_TFP = st.sidebar.slider("Tăng trưởng TFP mỗi năm (%)", -2.0, 5.0, 1.2, 0.1) / 100
 
-    if data_status == "csv":
-        st.success(f"✅ Đã đọc dữ liệu từ file: {csv_path}")
-    elif data_status == "default_error":
-        st.warning("⚠️ Có tìm thấy CSV nhưng không đọc được đúng định dạng. App đang dùng dữ liệu mặc định theo đề bài.")
-    else:
-        st.info("ℹ️ Chưa tìm thấy vietnam_macro_2020_2025.csv. App đang dùng dữ liệu mặc định theo đề bài.")
-
+   
     model_df, A_t, A_mean, Y_hat, mape = compute_model(
         raw_df,
         alpha,
@@ -476,7 +470,24 @@ def render():
         largest_factor_value,
         largest_factor_share,
     ) = get_largest_new_factor(avg_contrib_df)
+with st.expander("📊 Bảng dữ liệu tổng hợp Việt Nam 2020-2025", expanded=False):
+    display_df = raw_df.rename(
+        columns={
+            "Year": "Năm",
+            "GDP_trillion_VND": "Y (GDP, nghìn tỷ VND)",
+            "K": "K (vốn tích lũy, nghìn tỷ)",
+            "L": "L (triệu lao động)",
+            "D": "D (KTS/GDP, %)",
+            "AI": "AI (nghìn DN số)",
+            "H": "H (LĐ qua đào tạo, %)",
+        }
+    )
 
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+    st.caption(
+        "Hệ số đề xuất có thể tinh chỉnh: α = 0,33; β = 0,42; γ = 0,10; δ = 0,08; θ = 0,07."
+    )
     tabs = st.tabs(
         [
             "Ước lượng TFP",
@@ -495,10 +506,10 @@ def render():
 
         st.markdown(
             """
-            **Yêu cầu:** Đọc tệp dữ liệu `vietnam_macro_2020_2025.csv`.
-            Sử dụng `numpy` và `pandas`, ước lượng năng suất nhân tố tổng hợp `A_t`
-            cho mỗi năm bằng cách giải ngược từ hàm sản xuất. Vẽ đồ thị `A_t`
-            theo năm và bình luận xu hướng.
+           **Yêu cầu:** Sử dụng bảng dữ liệu tổng hợp Việt Nam giai đoạn 2020-2025.
+Dùng `numpy` và `pandas`, ước lượng năng suất nhân tố tổng hợp `A_t`
+cho mỗi năm bằng cách giải ngược từ hàm sản xuất. Vẽ đồ thị `A_t`
+theo năm và bình luận xu hướng.
             """
         )
 
