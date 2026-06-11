@@ -252,10 +252,6 @@ def tfp_trend(df):
 
 
 def make_styled_table(df, decimals=3):
-    """
-    Bảng nền trắng, chữ màu BRAND, có kẻ line.
-    Header chỉ bôi đậm chữ, không dùng nền màu.
-    """
     show_df = df.copy()
 
     format_dict = {}
@@ -352,29 +348,29 @@ def style_base_fig(fig, height=430):
     return fig
 
 
+def init_forecast_state():
+    defaults = {
+        "bai1_target_D": 30.0,
+        "bai1_target_AI": 100.0,
+        "bai1_target_H": 35.0,
+        "bai1_gK": 6.0,
+        "bai1_gL": 6.0,
+        "bai1_gTFP": 1.2,
+    }
+
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
 def render():
     st.title("Bài 1. Hàm sản xuất Cobb-Douglas mở rộng")
     st.caption("Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP 2030")
 
-    st.sidebar.header("⚙️ Bài 1")
+    # Hệ số cố định theo đề bài
+    alpha, beta, gamma, delta, theta = 0.33, 0.42, 0.10, 0.08, 0.07
 
-    st.sidebar.markdown("### Hệ số")
-    alpha = st.sidebar.slider("α - K", 0.00, 0.80, 0.33, 0.01)
-    beta = st.sidebar.slider("β - L", 0.00, 0.80, 0.42, 0.01)
-    gamma = st.sidebar.slider("γ - D", 0.00, 0.50, 0.10, 0.01)
-    delta = st.sidebar.slider("δ - AI", 0.00, 0.50, 0.08, 0.01)
-    theta = st.sidebar.slider("θ - H", 0.00, 0.50, 0.07, 0.01)
-
-    total_coef = alpha + beta + gamma + delta + theta
-    st.sidebar.caption(f"Tổng hệ số: {total_coef:.2f}")
-
-    st.sidebar.markdown("### Kịch bản 2030")
-    target_D = st.sidebar.slider("D 2030 (%)", 19.5, 45.0, 30.0, 0.5)
-    target_AI = st.sidebar.slider("AI 2030", 80.1, 180.0, 100.0, 1.0)
-    target_H = st.sidebar.slider("H 2030 (%)", 29.2, 60.0, 35.0, 0.5)
-    gK = st.sidebar.slider("Tăng K/năm (%)", 0.0, 15.0, 6.0, 0.1) / 100
-    gL = st.sidebar.slider("Tăng L/năm (%)", -2.0, 10.0, 6.0, 0.1) / 100
-    gTFP = st.sidebar.slider("Tăng TFP/năm (%)", -2.0, 5.0, 1.2, 0.1) / 100
+    init_forecast_state()
 
     raw_df = load_data()
     model_df, A_mean, mape = compute_model(raw_df, alpha, beta, gamma, delta, theta)
@@ -382,6 +378,13 @@ def render():
     detail_df, avg_df, avg_growth = growth_decomposition(
         model_df, alpha, beta, gamma, delta, theta
     )
+
+    target_D = st.session_state["bai1_target_D"]
+    target_AI = st.session_state["bai1_target_AI"]
+    target_H = st.session_state["bai1_target_H"]
+    gK = st.session_state["bai1_gK"] / 100
+    gL = st.session_state["bai1_gL"] / 100
+    gTFP = st.session_state["bai1_gTFP"] / 100
 
     forecast_df = forecast_2030(
         model_df,
@@ -659,6 +662,28 @@ def render():
         st.plotly_chart(fig, use_container_width=True)
 
         st.success(f"GDP dự báo năm 2030 đạt khoảng {y_2030:,.1f} nghìn tỷ VND.")
+
+        st.markdown("### Điều chỉnh kịch bản dự báo")
+
+        p1, p2, p3 = st.columns(3)
+        with p1:
+            st.slider("D 2030 - Kinh tế số/GDP (%)", 19.5, 45.0, key="bai1_target_D", step=0.5)
+        with p2:
+            st.slider("AI 2030 - Nghìn DN số", 80.1, 180.0, key="bai1_target_AI", step=1.0)
+        with p3:
+            st.slider("H 2030 - LĐ qua đào tạo (%)", 29.2, 60.0, key="bai1_target_H", step=0.5)
+
+        p4, p5, p6 = st.columns(3)
+        with p4:
+            st.slider("Tăng K mỗi năm (%)", 0.0, 15.0, key="bai1_gK", step=0.1)
+        with p5:
+            st.slider("Tăng L mỗi năm (%)", -2.0, 10.0, key="bai1_gL", step=0.1)
+        with p6:
+            st.slider("Tăng TFP mỗi năm (%)", -2.0, 5.0, key="bai1_gTFP", step=0.1)
+
+        st.caption(
+            "Khi thay đổi các thông số trên, bảng và biểu đồ dự báo sẽ tự cập nhật sau khi Streamlit chạy lại."
+        )
 
     # =====================================================
     # 1.5
