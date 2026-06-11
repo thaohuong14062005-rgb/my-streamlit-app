@@ -10,6 +10,7 @@ try:
     from pymoo.algorithms.moo.nsga2 import NSGA2
     from pymoo.optimize import minimize
     from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
     PYMOO_AVAILABLE = True
 except Exception:
     PYMOO_AVAILABLE = False
@@ -43,7 +44,7 @@ MULTI_COLORS = {
     "AI": "#2A9D8F",
     "Nhân lực số": "#F4A261",
     "Nghiệm thỏa hiệp": "#053151",
-    "Tăng trưởng cao nhất": "#E76F51",
+    "Nghiệm tăng trưởng cao nhất": "#E76F51",
 }
 
 
@@ -61,7 +62,7 @@ BETA = np.array(
 
 E = np.array([0.42, 0.55, 0.48, 0.32, 0.62, 0.38], dtype=float)
 RHO = np.array([0.18, 0.45, 0.28, 0.12, 0.52, 0.22], dtype=float)
-SIG = np.array([0.32, 0.28, 0.30, 0.35, 0.25, 0.30], dtype=float)
+SIGMA = np.array([0.32, 0.28, 0.30, 0.35, 0.25, 0.30], dtype=float)
 
 TOPSIS_WEIGHTS = np.array([0.40, 0.25, 0.20, 0.15], dtype=float)
 
@@ -88,24 +89,24 @@ if PYMOO_AVAILABLE:
                 )
 
         def _evaluate(self, x, out, *args, **kwargs):
-            X = x.reshape(6, 4)
+            X = np.asarray(x, dtype=float).reshape(6, 4)
 
-            region_sums = X.sum(axis=1)
+            region_sum = X.sum(axis=1)
             total_budget = X.sum()
             total_H = X[:, 3].sum()
 
             # Pymoo mặc định là minimize.
-            # f1 = -GDP gain để tương đương tối đa hóa GDP gain.
+            # f1 = -GDP gain để tương đương tối đa hóa tăng trưởng.
             f1 = -(BETA * X).sum()
 
-            # f2: chi phí bao trùm, càng thấp càng tốt.
-            f2 = np.abs(region_sums - region_sums.mean()).mean()
+            # f2: chi phí bao trùm, đo độ lệch phân bổ ngân sách giữa các vùng.
+            f2 = np.abs(region_sum - region_sum.mean()).mean()
 
-            # f3: phát thải từ hạ tầng và AI, càng thấp càng tốt.
+            # f3: phát thải từ hạ tầng số và AI.
             f3 = (E * (X[:, 0] + X[:, 2])).sum()
 
-            # f4: rủi ro ròng = rủi ro AI - giảm rủi ro nhờ nhân lực.
-            f4 = (RHO * X[:, 2]).sum() - (SIG * X[:, 3]).sum()
+            # f4: rủi ro ròng = rủi ro AI - giảm rủi ro nhờ nhân lực số.
+            f4 = (RHO * X[:, 2]).sum() - (SIGMA * X[:, 3]).sum()
 
             out["F"] = np.array([f1, f2, f3, f4], dtype=float)
 
@@ -116,11 +117,11 @@ if PYMOO_AVAILABLE:
 
             # C2: mỗi vùng có sàn 5.000
             for r in range(6):
-                G.append(5000 - region_sums[r])
+                G.append(5000 - region_sum[r])
 
             # C3: mỗi vùng có trần 12.000
             for r in range(6):
-                G.append(region_sums[r] - 12000)
+                G.append(region_sum[r] - 12000)
 
             # C4: tổng đầu tư nhân lực số >= 12.000
             G.append(12000 - total_H)
@@ -142,7 +143,7 @@ def beta_table():
     return pd.DataFrame(rows)
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def solve_nsga2_cached(pop_size=100, n_gen=200, seed=42):
     if not PYMOO_AVAILABLE:
         return {
@@ -176,6 +177,15 @@ def solve_nsga2_cached(pop_size=100, n_gen=200, seed=42):
             X_pop = res.pop.get("X")
             F_pop = res.pop.get("F")
             G_pop = res.pop.get("G")
+
+            if X_pop is None or F_pop is None or G_pop is None:
+                return {
+                    "success": False,
+                    "message": "Không đọc được quần thể cuối cùng từ pymoo.",
+                    "X": [],
+                    "F": [],
+                    "pareto_records": [],
+                }
 
             feasible = np.all(G_pop <= 1e-6, axis=1)
             X = X_pop[feasible]
@@ -245,7 +255,10 @@ def normalize_weights(weights):
 def topsis_on_pareto(pareto_df, weights=TOPSIS_WEIGHTS):
     w = normalize_weights(weights)
 
-    D = np.column_stack(
+    # Chuyển tất cả về dạng benefit:
+    # GDP gain càng cao càng tốt.
+    # Bao trùm cost, phát thải, rủi ro ròng càng thấp càng tốt nên lấy dấu âm.
+    decision = np.column_stack(
         [
             pareto_df["GDP gain"].values,
             -pareto_df["Bao trùm cost"].values,
@@ -254,10 +267,10 @@ def topsis_on_pareto(pareto_df, weights=TOPSIS_WEIGHTS):
         ]
     )
 
-    denom = np.sqrt((D ** 2).sum(axis=0))
+    denom = np.sqrt((decision ** 2).sum(axis=0))
     denom = np.where(np.isclose(denom, 0), 1, denom)
 
-    R = D / denom
+    R = decision / denom
     V = R * w
 
     ideal = V.max(axis=0)
@@ -294,6 +307,7 @@ def allocation_matrix_from_x(x_vector):
 
 def allocation_long_from_x(x_vector):
     X = np.asarray(x_vector, dtype=float).reshape(6, 4)
+
     rows = []
 
     for i, r in enumerate(REGIONS):
@@ -457,6 +471,7 @@ def style_base_fig(fig, height=430):
         ),
         legend=dict(font=dict(color=BRAND)),
     )
+
     return fig
 
 
@@ -465,7 +480,7 @@ def render():
     st.caption("Pareto frontier, scatter 3D, parallel coordinates, TOPSIS và chi phí cơ hội chính sách")
 
     if not PYMOO_AVAILABLE:
-        st.error("Chưa cài pymoo. Hãy thêm `pymoo` vào requirements.txt rồi deploy lại.")
+        st.error("Chưa cài pymoo. Hãy thêm `pymoo` vào requirements.txt rồi redeploy lại.")
         return
 
     res = solve_nsga2_cached(pop_size=100, n_gen=200, seed=42)
@@ -505,9 +520,6 @@ def render():
         ]
     )
 
-    # =====================================================
-    # 7.4.1
-    # =====================================================
     with tabs[0]:
         st.header("7.4.1. Cài đặt bài toán bằng pymoo NSGA-II")
 
@@ -562,9 +574,6 @@ def render():
             "Đã chạy NSGA-II với pop_size = 100, n_gen = 200 và trích xuất quần thể Pareto cuối cùng."
         )
 
-    # =====================================================
-    # 7.4.2
-    # =====================================================
     with tabs[1]:
         st.header("7.4.2. Tập Pareto, scatter 3D và parallel coordinates")
 
@@ -623,9 +632,6 @@ def render():
             "Mỗi nghiệm Pareto là một cấu hình đánh đổi giữa tăng trưởng, bao trùm, môi trường và an ninh."
         )
 
-    # =====================================================
-    # 7.4.3
-    # =====================================================
     with tabs[2]:
         st.header("7.4.3. Chọn nghiệm thỏa hiệp bằng TOPSIS")
 
@@ -673,9 +679,6 @@ def render():
             f"TOPSIS chọn nghiệm thỏa hiệp {compromise['Nghiệm']} với C* = {compromise['TOPSIS C*']:.4f}."
         )
 
-    # =====================================================
-    # 7.4.4
-    # =====================================================
     with tabs[3]:
         st.header("7.4.4. Chi phí cơ hội của mục tiêu tăng trưởng")
 
@@ -737,9 +740,6 @@ def render():
             "so với nghiệm thỏa hiệp, nhưng phải đánh đổi về bao trùm, môi trường hoặc rủi ro."
         )
 
-    # =====================================================
-    # 7.5
-    # =====================================================
     with tabs[4]:
         st.header("7.5. Thảo luận chính sách")
 
