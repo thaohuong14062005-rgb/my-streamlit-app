@@ -1,629 +1,1009 @@
-# bai09_ai_labor_market.py
-# Bài 9: Tác động AI tới thị trường lao động Việt Nam
-# Streamlit module: cần có hàm render()
+# bai09_lao_dong_ai.py
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-from scipy.optimize import linprog
+import plotly.express as px
+import plotly.graph_objects as go
 
 try:
-    import plotly.express as px
-    import plotly.graph_objects as go
+    import pulp
+    PULP_AVAILABLE = True
 except Exception:
-    px = None
-    go = None
+    PULP_AVAILABLE = False
 
 
-SECTOR_NAMES = [
-    "Nông-Lâm-Thủy sản",
-    "CN chế biến chế tạo",
-    "Xây dựng",
-    "Bán buôn-bán lẻ",
-    "Tài chính-Ngân hàng",
-    "Logistics-Vận tải",
-    "CNTT-Truyền thông",
-    "Giáo dục-Đào tạo",
-]
+BRAND = "#053151"
+
+MULTI_COLORS = {
+    "AI": "#053151",
+    "Đào tạo lại": "#E76F51",
+    "NewJob": "#2A9D8F",
+    "Upgrade": "#F4A261",
+    "Displaced": "#BC4749",
+    "RetrainCap": "#457B9D",
+    "NetJob": "#053151",
+    "Mô hình gốc": "#053151",
+    "Có ràng buộc 5%": "#E76F51",
+}
 
 
-def make_base_data() -> pd.DataFrame:
-    """Tạo bảng tham số Bài 9 theo đề bài."""
-    return pd.DataFrame({
-        "Ngành": SECTOR_NAMES,
-        "Lao động (triệu)": [13.20, 11.50, 4.80, 7.80, 0.55, 1.95, 0.62, 2.15],
-        "Risk (%)": [18, 42, 25, 38, 52, 35, 28, 22],
-        "a1 - việc mới AI / tỷ": [8.5, 32.5, 12.8, 22.4, 45.8, 28.5, 62.5, 18.5],
-        "a2 - việc mới CĐS / tỷ": [12.0, 18.5, 8.5, 15.2, 12.5, 16.8, 15.0, 22.0],
-        "b1 - nâng cấp việc làm / tỷ": [45.0, 28.0, 35.0, 32.0, 22.0, 30.0, 20.0, 55.0],
-        "c1 - dịch chuyển / tỷ": [5.2, 62.4, 18.5, 48.2, 72.5, 42.8, 32.5, 12.5],
-        "d1 - năng lực đào tạo lại / tỷ": [50.0, 32.0, 42.0, 38.0, 26.0, 36.0, 24.0, 62.0],
-    })
+# =========================================================
+# BÀI 9 — AI, VIỆC LÀM VÀ ĐÀO TẠO LẠI LAO ĐỘNG
+# =========================================================
 
 
-def solve_labor_lp(
-    budget: float = 30000.0,
-    include_loss_cap: bool = False,
-    sector_cap: float | None = None,
-    min_ai_share: float = 0.0,
-    min_h_share: float = 0.0,
-) -> tuple:
-    """
-    Giải bài toán LP:
+SECTORS = list(range(1, 9))
 
-    max sum_i NetJob_i
+SECTOR_NAMES = {
+    1: "Nông - Lâm - Thủy sản",
+    2: "CN chế biến chế tạo",
+    3: "Xây dựng",
+    4: "Bán buôn bán lẻ",
+    5: "Tài chính - Ngân hàng",
+    6: "Vận tải - Logistics",
+    7: "Thông tin - Truyền thông",
+    8: "Giáo dục - Y tế - Dịch vụ xã hội",
+}
 
-    NetJob_i = NewJob_i + UpgradeJob_i - DisplacedJob_i
-             = a1_i*x_AI_i + b1_i*x_H_i - c1_i*risk_i*x_AI_i
+RISK = {
+    1: 0.18,
+    2: 0.42,
+    3: 0.25,
+    4: 0.38,
+    5: 0.52,
+    6: 0.35,
+    7: 0.28,
+    8: 0.22,
+}
 
-    Ràng buộc:
-    - Tổng ngân sách <= budget
-    - NetJob_i >= 0
-    - DisplacedJob_i <= RetrainingCapacity_i
-    - Tùy chọn: DisplacedJob_i <= 5% lao động ngành
-    - Tùy chọn: trần ngân sách mỗi ngành
-    - Tùy chọn: sàn tỷ trọng AI / H
-    """
-    df = make_base_data()
-    n = len(df)
+A1 = {
+    1: 8.5,
+    2: 32.5,
+    3: 12.8,
+    4: 22.4,
+    5: 45.8,
+    6: 28.5,
+    7: 62.5,
+    8: 18.5,
+}
 
-    risk = df["Risk (%)"].to_numpy(dtype=float) / 100.0
-    labor = df["Lao động (triệu)"].to_numpy(dtype=float)
-    a1 = df["a1 - việc mới AI / tỷ"].to_numpy(dtype=float)
-    b1 = df["b1 - nâng cấp việc làm / tỷ"].to_numpy(dtype=float)
-    c1 = df["c1 - dịch chuyển / tỷ"].to_numpy(dtype=float)
-    d1 = df["d1 - năng lực đào tạo lại / tỷ"].to_numpy(dtype=float)
+B1 = {
+    1: 45,
+    2: 28,
+    3: 35,
+    4: 32,
+    5: 22,
+    6: 30,
+    7: 20,
+    8: 55,
+}
 
-    # Vector biến: [x_AI_1..x_AI_8, x_H_1..x_H_8]
-    ai_net_coef = a1 - c1 * risk
-    h_net_coef = b1
+C1 = {
+    1: 5.2,
+    2: 62.4,
+    3: 18.5,
+    4: 48.2,
+    5: 72.5,
+    6: 42.8,
+    7: 32.5,
+    8: 12.5,
+}
 
-    # scipy.linprog là bài toán min, nên đổi dấu để max
-    objective = -np.concatenate([ai_net_coef, h_net_coef])
+D1 = {
+    1: 50,
+    2: 32,
+    3: 42,
+    4: 38,
+    5: 26,
+    6: 36,
+    7: 24,
+    8: 62,
+}
 
-    A_ub = []
-    b_ub = []
+# Quy mô lao động giả định, đơn vị: nghìn lao động.
+# Dùng cho ràng buộc mở rộng: DisplacedJob_i <= 5% * L_i.
+LABOR_THOUSAND = {
+    1: 13800,
+    2: 11500,
+    3: 4800,
+    4: 7200,
+    5: 900,
+    6: 3100,
+    7: 1300,
+    8: 3200,
+}
 
-    # C1: tổng ngân sách
-    A_ub.append(np.ones(2 * n))
-    b_ub.append(budget)
 
-    # Sàn tỷ trọng AI nếu người dùng muốn mô phỏng thêm
-    if min_ai_share > 0:
-        row = np.zeros(2 * n)
-        row[:n] = -1
-        A_ub.append(row)
-        b_ub.append(-budget * min_ai_share)
+def sector_data():
+    rows = []
 
-    # Sàn tỷ trọng H nếu người dùng muốn mô phỏng thêm
-    if min_h_share > 0:
-        row = np.zeros(2 * n)
-        row[n:] = -1
-        A_ub.append(row)
-        b_ub.append(-budget * min_h_share)
+    for i in SECTORS:
+        displaced_coef = C1[i] * RISK[i]
+        net_ai_coef = A1[i] - displaced_coef
 
-    # C2: NetJob_i >= 0
-    # -NetJob_i <= 0
-    for i in range(n):
-        row = np.zeros(2 * n)
-        row[i] = -ai_net_coef[i]
-        row[n + i] = -h_net_coef[i]
-        A_ub.append(row)
-        b_ub.append(0.0)
+        rows.append(
+            {
+                "Ngành": i,
+                "Tên ngành": SECTOR_NAMES[i],
+                "Risk": RISK[i],
+                "a1 - NewJob/AI": A1[i],
+                "b1 - Upgrade/H": B1[i],
+                "c1 - Displaced/AI": C1[i],
+                "d1 - RetrainCap/H": D1[i],
+                "Hệ số Displaced thực": displaced_coef,
+                "NetJob biên của AI": net_ai_coef,
+                "L_i": LABOR_THOUSAND[i],
+                "5% L_i": 0.05 * LABOR_THOUSAND[i],
+            }
+        )
 
-    # C3: DisplacedJob_i <= RetrainingCapacity_i
-    # c1_i*risk_i*x_AI_i - d1_i*x_H_i <= 0
-    for i in range(n):
-        row = np.zeros(2 * n)
-        row[i] = c1[i] * risk[i]
-        row[n + i] = -d1[i]
-        A_ub.append(row)
-        b_ub.append(0.0)
+    return pd.DataFrame(rows)
 
-    # C4 mở rộng: không ngành nào mất quá 5% lao động
-    # DisplacedJob_i <= 0.05 * L_i
-    # L_i đang là triệu người, đổi sang số việc làm: triệu * 1_000_000
-    if include_loss_cap:
-        for i in range(n):
-            row = np.zeros(2 * n)
-            row[i] = c1[i] * risk[i]
-            A_ub.append(row)
-            b_ub.append(0.05 * labor[i] * 1_000_000)
 
-    # Tùy chọn mô phỏng thực tế: trần hấp thụ ngân sách mỗi ngành
-    if sector_cap is not None and sector_cap > 0:
-        for i in range(n):
-            row = np.zeros(2 * n)
-            row[i] = 1
-            row[n + i] = 1
-            A_ub.append(row)
-            b_ub.append(sector_cap)
+def solve_job_model(
+    total_budget=30000.0,
+    ai_min_budget=0.0,
+    max_loss_constraint=False,
+    max_loss_pct=0.05,
+):
+    if not PULP_AVAILABLE:
+        return {
+            "success": False,
+            "status": "PuLP chưa được cài",
+            "objective": np.nan,
+            "x_ai": {},
+            "x_h": {},
+        }
 
-    bounds = [(0, None)] * (2 * n)
+    model = pulp.LpProblem("VN_AI_Jobs_Transition", pulp.LpMaximize)
 
-    res = linprog(
-        c=objective,
-        A_ub=np.array(A_ub, dtype=float),
-        b_ub=np.array(b_ub, dtype=float),
-        bounds=bounds,
-        method="highs",
+    x_ai = pulp.LpVariable.dicts("x_AI", SECTORS, lowBound=0)
+    x_h = pulp.LpVariable.dicts("x_H", SECTORS, lowBound=0)
+
+    net_expr = {}
+
+    for i in SECTORS:
+        new_job = A1[i] * x_ai[i]
+        upgrade = B1[i] * x_h[i]
+        displaced = C1[i] * RISK[i] * x_ai[i]
+
+        net_expr[i] = new_job + upgrade - displaced
+
+    model += pulp.lpSum(net_expr[i] for i in SECTORS), "Total_NetJob"
+
+    model += (
+        pulp.lpSum(x_ai[i] + x_h[i] for i in SECTORS) <= total_budget,
+        "Total_budget",
     )
 
-    if not res.success:
-        return res, pd.DataFrame(), {}
+    if ai_min_budget > 0:
+        model += (
+            pulp.lpSum(x_ai[i] for i in SECTORS) >= ai_min_budget,
+            "AI_min_budget",
+        )
 
-    x = res.x
-    x_ai = x[:n]
-    x_h = x[n:]
+    for i in SECTORS:
+        new_job = A1[i] * x_ai[i]
+        upgrade = B1[i] * x_h[i]
+        displaced = C1[i] * RISK[i] * x_ai[i]
+        retrain_cap = D1[i] * x_h[i]
 
-    new_job_ai = a1 * x_ai
-    upgrade_job = b1 * x_h
-    displaced_job = c1 * risk * x_ai
-    retrain_cap = d1 * x_h
-    net_job = new_job_ai + upgrade_job - displaced_job
+        model += new_job + upgrade - displaced >= 0, f"NetJob_nonnegative_sector_{i}"
+        model += displaced <= retrain_cap, f"Retrain_capacity_sector_{i}"
 
-    result = df.copy()
-    result["x_AI tối ưu (tỷ VND)"] = x_ai
-    result["x_H tối ưu (tỷ VND)"] = x_h
-    result["Tổng đầu tư (tỷ VND)"] = x_ai + x_h
-    result["NewJob AI"] = new_job_ai
-    result["UpgradeJob"] = upgrade_job
-    result["DisplacedJob"] = displaced_job
-    result["RetrainingCapacity"] = retrain_cap
-    result["NetJob"] = net_job
-    result["Ngưỡng mất việc 5% LĐ"] = 0.05 * labor * 1_000_000
-    result["Có vượt 5% LĐ?"] = result["DisplacedJob"] > result["Ngưỡng mất việc 5% LĐ"] + 1e-8
+        if max_loss_constraint:
+            model += (
+                displaced <= max_loss_pct * LABOR_THOUSAND[i],
+                f"Max_5pct_displaced_sector_{i}",
+            )
 
-    summary = {
-        "total_budget_used": float((x_ai + x_h).sum()),
-        "total_netjob": float(net_job.sum()),
-        "total_newjob": float(new_job_ai.sum()),
-        "total_upgrade": float(upgrade_job.sum()),
-        "total_displaced": float(displaced_job.sum()),
-        "objective_value": float(-res.fun),
-    }
+    solver = pulp.PULP_CBC_CMD(msg=False)
+    status_code = model.solve(solver)
+    status = pulp.LpStatus[status_code]
 
-    return res, result, summary
+    if status != "Optimal":
+        return {
+            "success": False,
+            "status": status,
+            "objective": np.nan,
+            "x_ai": {},
+            "x_h": {},
+        }
 
-
-def manufacturing_retraining_threshold(x_ai_sector_2: float, budget: float) -> dict:
-    """
-    Tính ngưỡng x_H tối thiểu cho ngành 2: CN chế biến chế tạo.
-
-    Có 2 cách hiểu:
-    1. Chỉ cần NetJob_2 >= 0.
-    2. Vừa NetJob_2 >= 0 vừa DisplacedJob_2 <= RetrainingCapacity_2.
-    """
-    df = make_base_data()
-    idx = 1
-
-    risk = df.loc[idx, "Risk (%)"] / 100.0
-    a1 = df.loc[idx, "a1 - việc mới AI / tỷ"]
-    b1 = df.loc[idx, "b1 - nâng cấp việc làm / tỷ"]
-    c1 = df.loc[idx, "c1 - dịch chuyển / tỷ"]
-    d1 = df.loc[idx, "d1 - năng lực đào tạo lại / tỷ"]
-
-    ai_net_coef = a1 - c1 * risk
-
-    # Điều kiện NetJob >= 0:
-    # ai_net_coef*x_AI + b1*x_H >= 0
-    if ai_net_coef >= 0:
-        xh_for_netjob = 0.0
-    else:
-        xh_for_netjob = (-ai_net_coef * x_ai_sector_2) / b1
-
-    # Điều kiện đào tạo lại:
-    # c1*risk*x_AI <= d1*x_H
-    xh_for_capacity = (c1 * risk * x_ai_sector_2) / d1
-
-    # Ngưỡng chính sách nên dùng: thỏa cả 2 điều kiện
-    xh_required_policy = max(xh_for_netjob, xh_for_capacity)
-
-    # Nếu toàn bộ ngân sách chỉ dùng cho ngành 2,
-    # max x_AI khả thi khi vẫn đủ x_H đào tạo lại:
-    capacity_ratio = (c1 * risk) / d1
-    max_ai_feasible_with_budget = budget / (1.0 + capacity_ratio)
+    x_ai_val = {i: float(pulp.value(x_ai[i])) for i in SECTORS}
+    x_h_val = {i: float(pulp.value(x_h[i])) for i in SECTORS}
 
     return {
-        "ai_net_coef": ai_net_coef,
-        "xh_for_netjob": xh_for_netjob,
-        "xh_for_capacity": xh_for_capacity,
-        "xh_required_policy": xh_required_policy,
-        "capacity_ratio": capacity_ratio,
-        "max_ai_feasible_with_budget": max_ai_feasible_with_budget,
+        "success": True,
+        "status": status,
+        "objective": float(pulp.value(model.objective)),
+        "x_ai": x_ai_val,
+        "x_h": x_h_val,
     }
 
 
-def format_number(x: float, digits: int = 2) -> str:
-    return f"{x:,.{digits}f}"
+def result_table(result):
+    rows = []
 
-
-def make_bar_chart(result: pd.DataFrame):
-    if px is None:
-        st.warning("Chưa có plotly. Bạn thêm `plotly` vào requirements.txt để hiện biểu đồ đẹp hơn.")
-        return
-
-    plot_df = result.melt(
-        id_vars="Ngành",
-        value_vars=["NewJob AI", "UpgradeJob", "DisplacedJob", "NetJob"],
-        var_name="Chỉ tiêu",
-        value_name="Số việc làm",
-    )
-
-    fig = px.bar(
-        plot_df,
-        x="Ngành",
-        y="Số việc làm",
-        color="Chỉ tiêu",
-        barmode="group",
-        title="So sánh NewJob, UpgradeJob, DisplacedJob và NetJob theo ngành",
-    )
-    fig.update_layout(xaxis_tickangle=-35, height=520)
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def make_budget_chart(result: pd.DataFrame):
-    if px is None:
-        st.warning("Chưa có plotly. Bạn thêm `plotly` vào requirements.txt để hiện biểu đồ.")
-        return
-
-    plot_df = result.melt(
-        id_vars="Ngành",
-        value_vars=["x_AI tối ưu (tỷ VND)", "x_H tối ưu (tỷ VND)"],
-        var_name="Hạng mục",
-        value_name="Ngân sách",
-    )
-
-    fig = px.bar(
-        plot_df,
-        x="Ngành",
-        y="Ngân sách",
-        color="Hạng mục",
-        title="Phân bổ ngân sách tối ưu theo ngành",
-    )
-    fig.update_layout(xaxis_tickangle=-35, height=520)
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def make_sankey(result: pd.DataFrame):
-    if go is None:
-        st.warning("Chưa có plotly. Bạn thêm `plotly` vào requirements.txt để hiện Sankey.")
-        return
-
-    vulnerable_idx = [0, 2, 3]  # ngành 1, 3, 4
-    sub = result.iloc[vulnerable_idx].copy()
-
-    total_flow = (
-        sub["DisplacedJob"].sum()
-        + sub["NewJob AI"].sum()
-        + sub["UpgradeJob"].sum()
-    )
-
-    if total_flow <= 1e-8:
-        st.info(
-            "Nghiệm tối ưu hiện tại không tạo luồng đáng kể ở nhóm ngành 1, 3, 4. "
-            "Bạn có thể bật trần ngân sách mỗi ngành hoặc tăng sàn đầu tư AI ở thanh bên để Sankey có dữ liệu trực quan hơn."
+    if not result["success"]:
+        return pd.DataFrame(
+            {
+                "Thông tin": ["Trạng thái"],
+                "Giá trị": [result["status"]],
+            }
         )
-        return
 
+    for i in SECTORS:
+        x_ai = result["x_ai"][i]
+        x_h = result["x_h"][i]
+
+        new_job = A1[i] * x_ai
+        upgrade = B1[i] * x_h
+        displaced = C1[i] * RISK[i] * x_ai
+        retrain_cap = D1[i] * x_h
+        net_job = new_job + upgrade - displaced
+
+        rows.append(
+            {
+                "Ngành": i,
+                "Tên ngành": SECTOR_NAMES[i],
+                "x_AI": x_ai,
+                "x_H": x_h,
+                "NewJob": new_job,
+                "Upgrade": upgrade,
+                "Displaced": displaced,
+                "RetrainCap": retrain_cap,
+                "NetJob": net_job,
+                "Tổng đầu tư": x_ai + x_h,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def summary_table(result, label="Mô hình"):
+    if not result["success"]:
+        return pd.DataFrame(
+            {
+                "Chỉ tiêu": ["Kịch bản", "Trạng thái"],
+                "Giá trị": [label, result["status"]],
+            }
+        )
+
+    df = result_table(result)
+
+    return pd.DataFrame(
+        {
+            "Chỉ tiêu": [
+                "Kịch bản",
+                "Trạng thái",
+                "Tổng đầu tư",
+                "Tổng x_AI",
+                "Tổng x_H",
+                "Tổng NewJob",
+                "Tổng Upgrade",
+                "Tổng Displaced",
+                "Tổng NetJob",
+            ],
+            "Giá trị": [
+                label,
+                result["status"],
+                df["Tổng đầu tư"].sum(),
+                df["x_AI"].sum(),
+                df["x_H"].sum(),
+                df["NewJob"].sum(),
+                df["Upgrade"].sum(),
+                df["Displaced"].sum(),
+                df["NetJob"].sum(),
+            ],
+        }
+    )
+
+
+def compare_results(base_result, capped_result):
+    rows = []
+
+    for label, result in [
+        ("Mô hình gốc", base_result),
+        ("Có ràng buộc 5%", capped_result),
+    ]:
+        if result["success"]:
+            df = result_table(result)
+            rows.append(
+                {
+                    "Kịch bản": label,
+                    "Trạng thái": result["status"],
+                    "Tổng đầu tư": df["Tổng đầu tư"].sum(),
+                    "Tổng x_AI": df["x_AI"].sum(),
+                    "Tổng x_H": df["x_H"].sum(),
+                    "Tổng Displaced": df["Displaced"].sum(),
+                    "Tổng NetJob": df["NetJob"].sum(),
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "Kịch bản": label,
+                    "Trạng thái": result["status"],
+                    "Tổng đầu tư": np.nan,
+                    "Tổng x_AI": np.nan,
+                    "Tổng x_H": np.nan,
+                    "Tổng Displaced": np.nan,
+                    "Tổng NetJob": np.nan,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def threshold_sector2(x_ai_value):
+    i = 2
+
+    displaced_coef = C1[i] * RISK[i]
+    net_ai_coef = A1[i] - displaced_coef
+
+    if net_ai_coef >= 0:
+        h_for_netjob = 0.0
+    else:
+        h_for_netjob = ((displaced_coef - A1[i]) / B1[i]) * x_ai_value
+
+    h_for_retrain = (displaced_coef / D1[i]) * x_ai_value
+
+    return pd.DataFrame(
+        {
+            "Chỉ tiêu": [
+                "Ngành",
+                "x_AI giả định",
+                "Hệ số NewJob AI",
+                "Hệ số Displaced thực",
+                "NetJob biên của AI",
+                "x_H tối thiểu để NetJob₂ ≥ 0",
+                "x_H tối thiểu để Displaced₂ ≤ RetrainCap₂",
+                "Tổng ngân sách cần nếu đảm bảo retrain",
+            ],
+            "Giá trị": [
+                SECTOR_NAMES[i],
+                x_ai_value,
+                A1[i],
+                displaced_coef,
+                net_ai_coef,
+                h_for_netjob,
+                h_for_retrain,
+                x_ai_value + h_for_retrain,
+            ],
+        }
+    )
+
+
+def max_feasible_ai_sector2(total_budget=30000.0):
+    i = 2
+    displaced_coef = C1[i] * RISK[i]
+    h_ratio_retrain = displaced_coef / D1[i]
+
+    max_ai_with_retrain = total_budget / (1 + h_ratio_retrain)
+    min_h = h_ratio_retrain * max_ai_with_retrain
+
+    return pd.DataFrame(
+        {
+            "Chỉ tiêu": [
+                "Tổng ngân sách",
+                "Tỷ lệ x_H/x_AI tối thiểu để đủ RetrainCap",
+                "x_AI tối đa khả thi nếu chỉ xét ngành 2",
+                "x_H đi kèm tối thiểu",
+            ],
+            "Giá trị": [
+                total_budget,
+                h_ratio_retrain,
+                max_ai_with_retrain,
+                min_h,
+            ],
+        }
+    )
+
+
+def simulate_vulnerable_lanes(total_ai=6000.0, training_ratio=0.75):
+    vulnerable = [1, 3, 4]
+
+    labor_sum = sum(LABOR_THOUSAND[i] for i in vulnerable)
+
+    rows = []
+
+    for i in vulnerable:
+        weight = LABOR_THOUSAND[i] / labor_sum
+        x_ai = total_ai * weight
+        x_h = x_ai * training_ratio
+
+        displaced = C1[i] * RISK[i] * x_ai
+        retrain_cap = D1[i] * x_h
+        retrained = min(displaced, retrain_cap)
+        unsupported = max(displaced - retrain_cap, 0)
+        new_job = A1[i] * x_ai
+        upgrade = B1[i] * x_h
+
+        rows.append(
+            {
+                "Ngành": i,
+                "Tên ngành": SECTOR_NAMES[i],
+                "x_AI mô phỏng": x_ai,
+                "x_H mô phỏng": x_h,
+                "Displaced": displaced,
+                "Đào tạo lại được": retrained,
+                "Cần hỗ trợ an sinh": unsupported,
+                "NewJob": new_job,
+                "Upgrade": upgrade,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def sankey_figure(vulnerable_df):
     labels = []
+
+    for sector in vulnerable_df["Tên ngành"]:
+        labels.append(f"LĐ phổ thông - {sector}")
+
+    for sector in vulnerable_df["Tên ngành"]:
+        labels.append(f"Bị thay thế - {sector}")
+
+    labels += [
+        "Được đào tạo lại",
+        "Cần hỗ trợ an sinh",
+        "Việc làm mới từ AI",
+        "Nâng cấp kỹ năng",
+    ]
+
+    label_to_idx = {label: idx for idx, label in enumerate(labels)}
+
     sources = []
     targets = []
     values = []
 
-    def get_node(label: str) -> int:
-        if label not in labels:
-            labels.append(label)
-        return labels.index(label)
+    for _, row in vulnerable_df.iterrows():
+        source_label = f"LĐ phổ thông - {row['Tên ngành']}"
+        displaced_label = f"Bị thay thế - {row['Tên ngành']}"
 
-    for _, row in sub.iterrows():
-        sector = row["Ngành"]
+        sources.append(label_to_idx[source_label])
+        targets.append(label_to_idx[displaced_label])
+        values.append(max(row["Displaced"], 0.001))
 
-        displaced = max(float(row["DisplacedJob"]), 0.0)
-        retrained = min(displaced, max(float(row["RetrainingCapacity"]), 0.0))
-        unemployment_risk = max(displaced - retrained, 0.0)
-        new_upgrade = max(float(row["NewJob AI"] + row["UpgradeJob"]), 0.0)
+        sources.append(label_to_idx[displaced_label])
+        targets.append(label_to_idx["Được đào tạo lại"])
+        values.append(max(row["Đào tạo lại được"], 0.001))
 
-        n_sector = get_node(f"LĐ phổ thông - {sector}")
-        n_displaced = get_node("Bị dịch chuyển do tự động hóa")
-        n_retrained = get_node("Được đào tạo lại")
-        n_unemployment = get_node("Nguy cơ thất nghiệp")
-        n_new = get_node("Việc làm mới / nâng cấp")
+        if row["Cần hỗ trợ an sinh"] > 0:
+            sources.append(label_to_idx[displaced_label])
+            targets.append(label_to_idx["Cần hỗ trợ an sinh"])
+            values.append(row["Cần hỗ trợ an sinh"])
 
-        if displaced > 0:
-            sources.append(n_sector)
-            targets.append(n_displaced)
-            values.append(displaced)
+        sources.append(label_to_idx[source_label])
+        targets.append(label_to_idx["Việc làm mới từ AI"])
+        values.append(max(row["NewJob"], 0.001))
 
-            if retrained > 0:
-                sources.append(n_displaced)
-                targets.append(n_retrained)
-                values.append(retrained)
+        sources.append(label_to_idx[source_label])
+        targets.append(label_to_idx["Nâng cấp kỹ năng"])
+        values.append(max(row["Upgrade"], 0.001))
 
-            if unemployment_risk > 0:
-                sources.append(n_displaced)
-                targets.append(n_unemployment)
-                values.append(unemployment_risk)
-
-        if new_upgrade > 0:
-            sources.append(n_sector)
-            targets.append(n_new)
-            values.append(new_upgrade)
-
-    fig = go.Figure(data=[go.Sankey(
-        node=dict(
-            pad=18,
-            thickness=18,
-            line=dict(width=0.5),
-            label=labels,
-        ),
-        link=dict(
-            source=sources,
-            target=targets,
-            value=values,
-        )
-    )])
+    fig = go.Figure(
+        data=[
+            go.Sankey(
+                arrangement="snap",
+                node=dict(
+                    pad=18,
+                    thickness=18,
+                    line=dict(color=BRAND, width=0.5),
+                    label=labels,
+                    color="rgba(5,49,81,0.85)",
+                ),
+                link=dict(
+                    source=sources,
+                    target=targets,
+                    value=values,
+                    color="rgba(5,49,81,0.25)",
+                ),
+            )
+        ]
+    )
 
     fig.update_layout(
-        title_text="Swimming lane / Sankey: luồng dịch chuyển lao động nhóm dễ bị tổn thương",
-        height=560,
+        title_text="Swimming lane/Sankey: luồng dịch chuyển lao động dễ bị tổn thương",
+        height=620,
+        paper_bgcolor="white",
+        font=dict(color=BRAND, size=14),
+        title_font=dict(color=BRAND, size=20),
     )
-    st.plotly_chart(fig, use_container_width=True)
+
+    return fig
 
 
-def make_policy_commentary(result: pd.DataFrame, summary: dict) -> None:
-    top_h = result.sort_values("x_H tối ưu (tỷ VND)", ascending=False).head(3)
-    top_ai = result.sort_values("x_AI tối ưu (tỷ VND)", ascending=False).head(3)
-    top_net = result.sort_values("NetJob", ascending=False).head(3)
+def make_styled_table(df, decimals=3):
+    show_df = df.copy()
 
-    with st.expander("Gợi ý diễn giải chính sách", expanded=True):
-        st.markdown(
-            f"""
-            **1. Ngành cần đào tạo lại nhiều nhất**
+    format_dict = {}
 
-            Theo nghiệm hiện tại, ngành nhận đầu tư `x_H` lớn nhất là **{top_h.iloc[0]["Ngành"]}**
-            với khoảng **{format_number(top_h.iloc[0]["x_H tối ưu (tỷ VND)"])} tỷ VND**.
-            Điều này xuất hiện vì hệ số tạo/nâng cấp việc làm từ đào tạo của ngành này cao trong bộ tham số mô hình.
+    for col in show_df.columns:
+        if pd.api.types.is_numeric_dtype(show_df[col]):
+            if str(col).lower() in ["ngành"]:
+                format_dict[col] = "{:.0f}"
+            else:
+                format_dict[col] = "{:." + str(decimals) + "f}"
 
-            **2. Tài chính - Ngân hàng**
+    styler = show_df.style.format(format_dict)
 
-            Ngành Tài chính - Ngân hàng có rủi ro tự động hóa cao, nhưng cũng có hệ số tạo việc làm AI cao.
-            Vì vậy, nếu muốn đẩy AI vào ngành này, chính sách nên đi kèm đào tạo lại để kiểm soát điều kiện
-            `DisplacedJob <= RetrainingCapacity`.
+    try:
+        styler = styler.hide(axis="index")
+    except Exception:
+        try:
+            styler = styler.hide_index()
+        except Exception:
+            pass
 
-            **3. Nông - Lâm - Thủy sản**
+    styler = styler.set_properties(
+        **{
+            "background-color": "#ffffff",
+            "color": BRAND,
+            "border": f"1px solid {BRAND}",
+            "padding": "10px 12px",
+            "font-size": "16px",
+        }
+    )
 
-            Dù hệ số tạo việc làm AI trực tiếp không cao, đây là ngành có quy mô lao động lớn.
-            Vì vậy, mô hình gợi ý không nên chỉ nhìn vào hiệu suất AI, mà cần xét thêm tác động an sinh,
-            đào tạo lại và khả năng chuyển đổi của lao động phổ thông.
+    styler = styler.set_table_styles(
+        [
+            {
+                "selector": "thead th",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("font-weight", "800"),
+                    ("border", f"1px solid {BRAND}"),
+                    ("padding", "12px 12px"),
+                    ("font-size", "16px"),
+                    ("text-align", "left"),
+                ],
+            },
+            {
+                "selector": "tbody td",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("border", f"1px solid {BRAND}"),
+                ],
+            },
+            {
+                "selector": "table",
+                "props": [
+                    ("border-collapse", "collapse"),
+                    ("width", "100%"),
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                ],
+            },
+        ]
+    )
 
-            **4. Ràng buộc quan trọng nhất**
+    return styler
 
-            Mệnh đề “tốc độ tự động hóa không nên vượt quá năng lực đào tạo lại” được biểu diễn trực tiếp bằng:
 
-            `DisplacedJob_i <= RetrainingCapacity_i`
+def show_table(df, decimals=3):
+    st.table(make_styled_table(df, decimals=decimals))
 
-            Đây là ràng buộc bảo vệ xã hội quan trọng hơn so với việc chỉ tối đa hóa tổng NetJob.
-            """
-        )
+
+def style_base_fig(fig, height=430):
+    fig.update_layout(
+        height=height,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(color=BRAND, size=15),
+        title_font=dict(color=BRAND, size=20),
+        xaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        yaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            gridcolor="rgba(5,49,81,0.18)",
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        legend=dict(font=dict(color=BRAND)),
+    )
+
+    return fig
 
 
 def render():
-    st.title("Bài 9. Tác động AI tới thị trường lao động Việt Nam")
-    st.caption("Mô phỏng NetJob theo ngành dưới tác động của AI, tự động hóa và đào tạo lại lao động.")
+    st.title("Bài 9. AI, việc làm và đào tạo lại lao động")
+    st.caption("Mô hình tuyến tính bằng PuLP/CBC, NetJob, ngưỡng đào tạo, Sankey lao động và ràng buộc an sinh")
 
-    with st.expander("Mô hình toán học sử dụng trong bài", expanded=False):
-        st.markdown(
-            """
-            Mô hình được viết theo dạng tuyến tính:
-
-            **NetJobᵢ = NewJobᵢ + UpgradeJobᵢ − DisplacedJobᵢ**
-
-            Trong phiên bản đơn giản của đề bài:
-
-            - `NewJobᵢ = a1ᵢ × x_AIᵢ`
-            - `UpgradeJobᵢ = b1ᵢ × x_Hᵢ`
-            - `DisplacedJobᵢ = c1ᵢ × riskᵢ × x_AIᵢ`
-            - `RetrainingCapacityᵢ = d1ᵢ × x_Hᵢ`
-
-            Bài toán tối ưu:
-
-            `max Σ NetJobᵢ`
-
-            với các ràng buộc:
-
-            - Tổng ngân sách `Σ(x_AIᵢ + x_Hᵢ) ≤ 30.000`
-            - `NetJobᵢ ≥ 0`
-            - `DisplacedJobᵢ ≤ RetrainingCapacityᵢ`
-            - Mở rộng: `DisplacedJobᵢ ≤ 0,05 × Lᵢ`
-            """
-        )
-
-    df = make_base_data()
-
-    st.subheader("1. Bảng tham số 8 ngành")
-    st.dataframe(df, use_container_width=True)
-
-    st.sidebar.header("Thiết lập mô hình Bài 9")
-
-    budget = st.sidebar.number_input(
-        "Tổng ngân sách (tỷ VND)",
-        min_value=1000.0,
-        max_value=100000.0,
-        value=30000.0,
-        step=1000.0,
-    )
-
-    include_loss_cap = st.sidebar.checkbox(
-        "Bật ràng buộc không ngành nào mất quá 5% lao động",
-        value=False,
-    )
-
-    use_sector_cap = st.sidebar.checkbox(
-        "Thêm trần ngân sách mỗi ngành để nghiệm phân bổ đều hơn",
-        value=False,
-    )
-
-    sector_cap = None
-    if use_sector_cap:
-        sector_cap = st.sidebar.number_input(
-            "Trần ngân sách mỗi ngành (tỷ VND)",
-            min_value=1000.0,
-            max_value=float(budget),
-            value=6000.0,
-            step=500.0,
-        )
-
-    min_ai_share = st.sidebar.slider(
-        "Sàn tỷ trọng đầu tư AI",
-        min_value=0.0,
-        max_value=0.8,
-        value=0.0,
-        step=0.05,
-    )
-
-    min_h_share = st.sidebar.slider(
-        "Sàn tỷ trọng đầu tư đào tạo lại H",
-        min_value=0.0,
-        max_value=0.8,
-        value=0.0,
-        step=0.05,
-    )
-
-    if min_ai_share + min_h_share > 1.0:
-        st.error("Tổng sàn tỷ trọng AI và H đang vượt 100%. Hãy giảm một trong hai giá trị.")
+    if not PULP_AVAILABLE:
+        st.error("Chưa cài PuLP. Hãy thêm `pulp` vào requirements.txt rồi redeploy lại.")
         return
 
-    res, result, summary = solve_labor_lp(
-        budget=budget,
-        include_loss_cap=include_loss_cap,
-        sector_cap=sector_cap,
-        min_ai_share=min_ai_share,
-        min_h_share=min_h_share,
+    base_result = solve_job_model(
+        total_budget=30000,
+        ai_min_budget=0,
+        max_loss_constraint=False,
     )
 
-    st.subheader("2. Kết quả tối ưu hóa")
-
-    if not res.success:
-        st.error("Bài toán không khả thi hoặc solver không tìm được nghiệm.")
-        st.code(res.message)
-        return
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ngân sách sử dụng", f"{summary['total_budget_used']:,.0f} tỷ")
-    col2.metric("Tổng NetJob", f"{summary['total_netjob']:,.0f} việc làm")
-    col3.metric("Việc làm mới AI", f"{summary['total_newjob']:,.0f}")
-    col4.metric("Việc làm bị dịch chuyển", f"{summary['total_displaced']:,.0f}")
-
-    display_cols = [
-        "Ngành",
-        "x_AI tối ưu (tỷ VND)",
-        "x_H tối ưu (tỷ VND)",
-        "Tổng đầu tư (tỷ VND)",
-        "NewJob AI",
-        "UpgradeJob",
-        "DisplacedJob",
-        "RetrainingCapacity",
-        "NetJob",
-        "Ngưỡng mất việc 5% LĐ",
-        "Có vượt 5% LĐ?",
-    ]
-
-    st.dataframe(
-        result[display_cols].style.format({
-            "x_AI tối ưu (tỷ VND)": "{:,.2f}",
-            "x_H tối ưu (tỷ VND)": "{:,.2f}",
-            "Tổng đầu tư (tỷ VND)": "{:,.2f}",
-            "NewJob AI": "{:,.0f}",
-            "UpgradeJob": "{:,.0f}",
-            "DisplacedJob": "{:,.0f}",
-            "RetrainingCapacity": "{:,.0f}",
-            "NetJob": "{:,.0f}",
-            "Ngưỡng mất việc 5% LĐ": "{:,.0f}",
-        }),
-        use_container_width=True,
+    capped_result = solve_job_model(
+        total_budget=30000,
+        ai_min_budget=0,
+        max_loss_constraint=True,
+        max_loss_pct=0.05,
     )
 
-    if not use_sector_cap and min_ai_share == 0 and min_h_share == 0:
-        st.info(
-            "Lưu ý: với mô hình gốc không có trần ngân sách theo ngành, nghiệm LP có thể dồn phần lớn ngân sách "
-            "vào ngành có hệ số tạo việc làm cao nhất. Đây là đặc điểm bình thường của quy hoạch tuyến tính."
+    tabs = st.tabs(
+        [
+            "9.4.1 PuLP/CBC",
+            "9.4.2 Ngưỡng ngành 2",
+            "9.4.3 Sankey lao động",
+            "9.4.4 Ràng buộc 5%",
+            "9.5 Chính sách",
+        ]
+    )
+
+    # =====================================================
+    # 9.4.1
+    # =====================================================
+    with tabs[0]:
+        st.header("9.4.1. Giải mô hình bằng PuLP/CBC")
+
+        st.subheader("Dữ liệu đầu vào")
+        show_table(sector_data(), decimals=3)
+
+        if not base_result["success"]:
+            st.error(f"Mô hình không tối ưu. Trạng thái: {base_result['status']}")
+        else:
+            result_df = result_table(base_result)
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Trạng thái", base_result["status"])
+            c2.metric("Tổng NetJob", f"{result_df['NetJob'].sum():,.1f}")
+            c3.metric("Tổng x_AI", f"{result_df['x_AI'].sum():,.1f}")
+            c4.metric("Tổng x_H", f"{result_df['x_H'].sum():,.1f}")
+
+            st.subheader("Phân bổ tối ưu x_AI và x_H theo ngành")
+            show_table(result_df, decimals=3)
+
+            st.subheader("Tổng hợp nghiệm")
+            show_table(summary_table(base_result, "Mô hình gốc"), decimals=3)
+
+            invest_long = result_df[["Tên ngành", "x_AI", "x_H"]].rename(
+                columns={
+                    "x_AI": "AI",
+                    "x_H": "Đào tạo lại",
+                }
+            ).melt(
+                id_vars="Tên ngành",
+                value_vars=["AI", "Đào tạo lại"],
+                var_name="Loại đầu tư",
+                value_name="Giá trị",
+            )
+
+            fig_inv = px.bar(
+                invest_long,
+                x="Tên ngành",
+                y="Giá trị",
+                color="Loại đầu tư",
+                barmode="group",
+                title="Phân bổ đầu tư AI và đào tạo lại theo ngành",
+                color_discrete_map=MULTI_COLORS,
+            )
+            fig_inv.update_traces(marker_line_color="white", marker_line_width=1)
+            fig_inv.update_layout(xaxis_title="Ngành", yaxis_title="Ngân sách")
+            style_base_fig(fig_inv, height=520)
+            st.plotly_chart(fig_inv, use_container_width=True)
+
+            job_long = result_df[["Tên ngành", "NewJob", "Upgrade", "Displaced", "NetJob"]].melt(
+                id_vars="Tên ngành",
+                value_vars=["NewJob", "Upgrade", "Displaced", "NetJob"],
+                var_name="Chỉ tiêu",
+                value_name="Giá trị",
+            )
+
+            fig_job = px.bar(
+                job_long,
+                x="Tên ngành",
+                y="Giá trị",
+                color="Chỉ tiêu",
+                barmode="group",
+                title="NewJob, Upgrade, Displaced và NetJob theo ngành",
+                color_discrete_map=MULTI_COLORS,
+            )
+            fig_job.update_traces(marker_line_color="white", marker_line_width=1)
+            fig_job.update_layout(xaxis_title="Ngành", yaxis_title="Việc làm")
+            style_base_fig(fig_job, height=520)
+            st.plotly_chart(fig_job, use_container_width=True)
+
+            st.markdown("### Kiểm thử nhanh yêu cầu ngân sách AI tối thiểu")
+
+            ai_min = st.slider(
+                "Ngân sách AI tối thiểu",
+                0,
+                20000,
+                0,
+                1000,
+            )
+
+            test_result = solve_job_model(
+                total_budget=30000,
+                ai_min_budget=ai_min,
+                max_loss_constraint=False,
+            )
+
+            show_table(summary_table(test_result, f"AI tối thiểu {ai_min:,.0f}"), decimals=3)
+
+            st.success(
+                "Mô hình đã giải bằng PuLP/CBC. Nếu nghiệm tập trung vào đào tạo lại, đó là do hàm mục tiêu đang tối đa hóa NetJob ròng ngắn hạn."
+            )
+
+    # =====================================================
+    # 9.4.2
+    # =====================================================
+    with tabs[1]:
+        st.header("9.4.2. Ngưỡng đào tạo tối thiểu ở ngành 2")
+
+        x_ai_sector2 = st.slider(
+            "Giả định x_AI ở ngành 2",
+            0,
+            30000,
+            30000,
+            1000,
         )
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Biểu đồ ngân sách",
-        "Biểu đồ NetJob",
-        "Ngưỡng ngành chế biến",
-        "Sankey nhóm dễ tổn thương",
-    ])
-
-    with tab1:
-        make_budget_chart(result)
-
-    with tab2:
-        make_bar_chart(result)
-
-    with tab3:
-        st.markdown("### Câu 9.4.2 - Ngưỡng đầu tư đào tạo lại ngành 2")
-
-        x_ai_max_default = budget
-        x_ai_sector_2 = st.slider(
-            "Giả định x_AI cho ngành CN chế biến chế tạo (tỷ VND)",
-            min_value=0.0,
-            max_value=float(budget),
-            value=float(x_ai_max_default),
-            step=500.0,
-        )
-
-        threshold = manufacturing_retraining_threshold(
-            x_ai_sector_2=x_ai_sector_2,
-            budget=budget,
-        )
+        threshold_df = threshold_sector2(x_ai_sector2)
+        feasible_ai_df = max_feasible_ai_sector2(total_budget=30000)
 
         c1, c2, c3 = st.columns(3)
-        c1.metric(
-            "x_H để NetJob₂ ≥ 0",
-            f"{threshold['xh_for_netjob']:,.2f} tỷ",
+        c1.metric("Ngành", "CN chế biến chế tạo")
+        c2.metric("x_AI giả định", f"{x_ai_sector2:,.0f}")
+        c3.metric("Risk ngành 2", f"{RISK[2]:.0%}")
+
+        st.subheader("Ngưỡng x_H theo điều kiện NetJob₂ ≥ 0")
+        show_table(threshold_df, decimals=3)
+
+        st.subheader("Nếu đồng thời bảo đảm Displaced₂ ≤ RetrainCap₂")
+        show_table(feasible_ai_df, decimals=3)
+
+        st.success(
+            "Với dữ liệu đề bài, NetJob biên của AI ở ngành 2 vẫn dương vì NewJob do AI lớn hơn DisplacedJob kỳ vọng. "
+            "Do đó, riêng điều kiện NetJob₂ ≥ 0 không đòi hỏi x_H dương. Tuy nhiên, điều kiện an sinh Displaced₂ ≤ RetrainCap₂ "
+            "lại yêu cầu đào tạo lại đi kèm khá lớn."
         )
-        c2.metric(
-            "x_H để đủ đào tạo lại",
-            f"{threshold['xh_for_capacity']:,.2f} tỷ",
-        )
-        c3.metric(
-            "Ngưỡng chính sách nên dùng",
-            f"{threshold['xh_required_policy']:,.2f} tỷ",
-        )
+
+    # =====================================================
+    # 9.4.3
+    # =====================================================
+    with tabs[2]:
+        st.header("9.4.3. Mô phỏng nhóm lao động dễ bị tổn thương")
 
         st.markdown(
-            f"""
-            Với ngành **CN chế biến chế tạo**, hệ số NetJob biên của đầu tư AI là:
+            "Nhóm dễ bị tổn thương gồm lao động phổ thông trong các ngành 1, 3, 4: "
+            "**Nông - Lâm - Thủy sản, Xây dựng, Bán buôn bán lẻ**."
+        )
 
-            `a1 - c1 × risk = {threshold["ai_net_coef"]:.3f}` việc làm / tỷ VND.
+        c1, c2 = st.columns(2)
 
-            Vì hệ số này đang dương, nếu chỉ xét điều kiện `NetJob₂ ≥ 0` thì về mặt toán học
-            có thể cần rất ít hoặc không cần `x_H`. Tuy nhiên, điều kiện chính sách quan trọng hơn là:
+        total_ai_vulnerable = c1.slider(
+            "Tổng đầu tư AI mô phỏng vào ngành 1, 3, 4",
+            1000,
+            15000,
+            6000,
+            1000,
+        )
 
-            `DisplacedJob₂ ≤ RetrainingCapacity₂`
+        training_ratio = c2.slider(
+            "Tỷ lệ x_H / x_AI mô phỏng",
+            0.20,
+            1.50,
+            0.75,
+            0.05,
+        )
 
-            tức lao động bị dịch chuyển phải nằm trong năng lực đào tạo lại.
-            Với ngân sách **{budget:,.0f} tỷ VND**, nếu chỉ tập trung vào riêng ngành 2,
-            mức `x_AI` tối đa vẫn đủ ngân sách cho đào tạo lại là khoảng
-            **{threshold["max_ai_feasible_with_budget"]:,.2f} tỷ VND**.
+        vulnerable_df = simulate_vulnerable_lanes(
+            total_ai=total_ai_vulnerable,
+            training_ratio=training_ratio,
+        )
+
+        show_table(vulnerable_df, decimals=3)
+
+        fig_sankey = sankey_figure(vulnerable_df)
+        st.plotly_chart(fig_sankey, use_container_width=True)
+
+        flow_long = vulnerable_df[
+            ["Tên ngành", "Displaced", "Đào tạo lại được", "Cần hỗ trợ an sinh", "NewJob", "Upgrade"]
+        ].melt(
+            id_vars="Tên ngành",
+            var_name="Luồng",
+            value_name="Giá trị",
+        )
+
+        fig_flow = px.bar(
+            flow_long,
+            x="Tên ngành",
+            y="Giá trị",
+            color="Luồng",
+            barmode="group",
+            title="Tác động đến nhóm lao động dễ bị tổn thương",
+        )
+        fig_flow.update_traces(marker_line_color="white", marker_line_width=1)
+        fig_flow.update_layout(xaxis_title="Ngành", yaxis_title="Lao động")
+        style_base_fig(fig_flow, height=500)
+        st.plotly_chart(fig_flow, use_container_width=True)
+
+        st.success(
+            "Sankey cho thấy phần lao động bị thay thế có thể được đào tạo lại, nhưng nếu năng lực đào tạo không đủ thì xuất hiện nhóm cần hỗ trợ an sinh."
+        )
+
+    # =====================================================
+    # 9.4.4
+    # =====================================================
+    with tabs[3]:
+        st.header("9.4.4. Thêm ràng buộc không ngành nào mất quá 5% lao động")
+
+        compare_df = compare_results(base_result, capped_result)
+
+        show_table(compare_df, decimals=3)
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Mô hình gốc", base_result["status"])
+        c2.metric("Có ràng buộc 5%", capped_result["status"])
+
+        if base_result["success"] and capped_result["success"]:
+            delta = capped_result["objective"] - base_result["objective"]
+            c3.metric("Thay đổi NetJob", f"{delta:,.1f}")
+        else:
+            c3.metric("Thay đổi NetJob", "Không xác định")
+
+        if capped_result["success"]:
+            capped_df = result_table(capped_result)
+
+            st.subheader("Phân bổ khi thêm ràng buộc 5%")
+            show_table(capped_df, decimals=3)
+
+            fig = px.bar(
+                capped_df,
+                x="Tên ngành",
+                y="Displaced",
+                text=capped_df["Displaced"].round(1),
+                title="DisplacedJob theo ngành dưới ràng buộc 5%",
+            )
+            fig.update_traces(
+                marker_color=BRAND,
+                textposition="outside",
+                textfont=dict(color=BRAND),
+            )
+            fig.update_layout(xaxis_title="Ngành", yaxis_title="DisplacedJob")
+            style_base_fig(fig, height=480)
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.success(
+                "Bài toán vẫn khả thi khi thêm ràng buộc 5%, nếu mô hình có thể điều chỉnh giảm AI hoặc tăng đào tạo lại để kiểm soát mất việc."
+            )
+        else:
+            st.error(
+                "Bài toán không khả thi với ràng buộc 5%. Điều này có nghĩa tốc độ tự động hóa đang vượt quá khả năng bảo vệ việc làm của hệ thống."
+            )
+
+        st.markdown("### Kiểm thử thêm: yêu cầu AI tối thiểu + ràng buộc 5%")
+
+        ai_min_capped = st.slider(
+            "Ngân sách AI tối thiểu khi có ràng buộc 5%",
+            0,
+            20000,
+            5000,
+            1000,
+        )
+
+        test_capped = solve_job_model(
+            total_budget=30000,
+            ai_min_budget=ai_min_capped,
+            max_loss_constraint=True,
+            max_loss_pct=0.05,
+        )
+
+        show_table(summary_table(test_capped, f"AI tối thiểu {ai_min_capped:,.0f} + ràng buộc 5%"), decimals=3)
+
+    # =====================================================
+    # 9.5
+    # =====================================================
+    with tabs[4]:
+        st.header("9.5. Thảo luận chính sách")
+
+        base_df = result_table(base_result) if base_result["success"] else pd.DataFrame()
+
+        if len(base_df) > 0:
+            top_training = base_df.sort_values("x_H", ascending=False).iloc[0]["Tên ngành"]
+            finance_row = base_df[base_df["Ngành"] == 5].iloc[0]
+            agri_row = base_df[base_df["Ngành"] == 1].iloc[0]
+        else:
+            top_training = "Không xác định"
+            finance_row = None
+            agri_row = None
+
+        st.markdown("### a) Ngành nào cần đầu tư đào tạo lại nhiều nhất?")
+
+        st.success(f"Theo nghiệm tối ưu, ngành nhận đào tạo lại nhiều nhất là **{top_training}**.")
+
+        st.markdown(
+            """
+            Kết quả này cần được hiểu theo logic của mô hình: đào tạo lại tạo ra UpgradeJob và đồng thời giúp hấp thụ rủi ro do tự động hóa.
+            Nếu một ngành có hệ số b1 hoặc d1 cao, mô hình có xu hướng phân bổ nhiều x_H vào ngành đó.
+
+            Về thực tế Việt Nam, nhu cầu đào tạo lại thường lớn ở các ngành đông lao động hoặc có tốc độ tự động hóa nhanh:
+            chế biến chế tạo, bán lẻ, logistics, tài chính - ngân hàng và một phần nông nghiệp công nghệ cao.
+            Vì vậy, kết quả mô hình nên được đối chiếu thêm với quy mô lao động và khả năng thực thi đào tạo tại từng ngành.
             """
         )
 
-    with tab4:
-        st.markdown("### Câu 9.4.3 - Luồng dịch chuyển lao động nhóm dễ bị tổn thương")
-        st.caption("Nhóm dễ bị tổn thương gồm ngành 1, 3, 4: Nông-Lâm-Thủy sản, Xây dựng, Bán buôn-bán lẻ.")
-        make_sankey(result)
+        st.markdown("### b) Ngành Tài chính - Ngân hàng có risk 52% nhưng hệ số tạo việc làm AI cao")
 
-    st.subheader("3. Kiểm tra ràng buộc mở rộng 5% lao động")
-    if include_loss_cap:
-        if result["Có vượt 5% LĐ?"].any():
-            st.error("Có ít nhất một ngành vượt ngưỡng 5% lao động. Cần xem lại ràng buộc hoặc nghiệm.")
-        else:
-            st.success("Bài toán khả thi và không ngành nào vượt ngưỡng mất việc 5% lao động.")
-    else:
-        st.info("Bạn có thể bật ràng buộc 5% ở thanh bên để kiểm tra Câu 9.4.4.")
+        st.markdown(
+            """
+            Tài chính - Ngân hàng là ngành có hai mặt rất rõ.
+            Một mặt, risk thay thế cao vì nhiều tác vụ có thể tự động hóa: chấm điểm tín dụng, chăm sóc khách hàng,
+            phát hiện gian lận, xử lý hồ sơ và giao dịch số.
+            Mặt khác, hệ số tạo việc làm mới từ AI cũng cao vì ngành này có thể phát sinh nhiều vị trí mới:
+            chuyên gia dữ liệu, kỹ sư mô hình, quản trị rủi ro AI, an ninh dữ liệu, sản phẩm tài chính số.
 
-    make_policy_commentary(result, summary)
+            Vì vậy, chiến lược phù hợp không phải là tránh AI, mà là **AI đi kèm đào tạo lại bắt buộc**.
+            Nghĩa là tốc độ triển khai AI phải gắn với năng lực chuyển đổi kỹ năng của lao động hiện hữu.
+            """
+        )
+
+        st.markdown("### c) Có nên đầu tư AI vào Nông - Lâm - Thủy sản không?")
+
+        st.markdown(
+            """
+            Ngành Nông - Lâm - Thủy sản có hệ số tạo việc làm AI thấp hơn nhiều ngành khác,
+            nhưng quy mô lao động lớn nên tác động xã hội của tự động hóa có thể rất đáng kể.
+            Nếu chỉ tối đa hóa NetJob ngắn hạn, mô hình có thể không ưu tiên x_AI vào ngành này.
+            Tuy nhiên, điều đó không có nghĩa là không nên đầu tư AI.
+
+            Với nông nghiệp, AI nên được triển khai theo hướng hỗ trợ năng suất và giảm rủi ro:
+            dự báo thời tiết, tối ưu tưới tiêu, truy xuất nguồn gốc, cảnh báo dịch bệnh, logistics nông sản,
+            thay vì tự động hóa thay thế lao động quá nhanh.
+
+            Mô hình hàm ý rằng nếu đầu tư AI vào nông nghiệp, cần đi cùng đào tạo kỹ năng số cơ bản,
+            khuyến nông số và chính sách hỗ trợ chuyển đổi sinh kế cho lao động dễ bị tổn thương.
+            """
+        )
+
+        st.markdown("### d) Ràng buộc “tốc độ tự động hóa không vượt quá năng lực đào tạo lại” là ràng buộc nào?")
+
+        st.success("Ràng buộc đó là: **DisplacedJobᵢ ≤ RetrainCapᵢ** cho mọi ngành i.")
+
+        st.markdown(
+            """
+            Trong mô hình, ràng buộc này được viết dưới dạng:
+
+            `c1_i × risk_i × x_AI_i ≤ d1_i × x_H_i`
+
+            Vế trái là số lao động có nguy cơ bị thay thế do AI.
+            Vế phải là năng lực đào tạo lại do đầu tư x_H tạo ra.
+            Đây chính là cách mô hình hóa nguyên tắc: tự động hóa không được đi nhanh hơn khả năng tái đào tạo.
+
+            Có thể bổ sung thêm các ràng buộc an sinh xã hội:
+
+            - Không ngành nào mất quá 5% lao động: `DisplacedJob_i ≤ 0.05 × L_i`.
+            - Nhóm dễ bị tổn thương phải nhận tối thiểu một tỷ lệ ngân sách đào tạo.
+            - Ngành có risk cao phải có tỷ lệ x_H/x_AI tối thiểu.
+            - Tổng lao động cần hỗ trợ an sinh không vượt quá năng lực ngân sách xã hội.
+            - Ưu tiên đào tạo trước cho ngành đông lao động phổ thông.
+
+            Như vậy, mô hình không chỉ tối đa hóa việc làm ròng mà còn kiểm soát tốc độ chuyển đổi để tránh cú sốc xã hội.
+            """
+        )
+
+        st.info(
+            "Kết luận: AI có thể tạo việc làm ròng dương, nhưng chỉ bền vững khi đầu tư đào tạo lại đủ lớn và đúng ngành."
+        )
+
+
+def run():
+    render()
