@@ -2,6 +2,17 @@
 import importlib
 import streamlit as st
 
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+
+try:
+    import plotly.io as pio
+    pio.templates.default = "plotly_white"
+except Exception:
+    pio = None
+
 
 # =========================
 # CẤU HÌNH TRANG
@@ -21,13 +32,41 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-        /* =========================
-           NỀN TỔNG THỂ
-        ========================= */
+        :root {
+            --aideom-blue: #053151;
+            --aideom-cream: #F8F1E3;
+            --aideom-orange: #E48837;
+            --aideom-white: #FFFFFF;
+        }
 
+        /* Nền app */
         .stApp {
-            background: #F8F1E3 !important;
-            color: #053151 !important;
+            background: var(--aideom-cream) !important;
+            color: var(--aideom-blue) !important;
+        }
+
+        /* Xóa phần header đen phía trên */
+        header[data-testid="stHeader"] {
+            background: var(--aideom-cream) !important;
+            color: var(--aideom-blue) !important;
+            box-shadow: none !important;
+        }
+
+        header[data-testid="stHeader"] * {
+            color: var(--aideom-blue) !important;
+        }
+
+        div[data-testid="stToolbar"] {
+            background: var(--aideom-cream) !important;
+            color: var(--aideom-blue) !important;
+        }
+
+        div[data-testid="stToolbar"] * {
+            color: var(--aideom-blue) !important;
+        }
+
+        div[data-testid="stDecoration"] {
+            background: var(--aideom-cream) !important;
         }
 
         .block-container {
@@ -36,17 +75,14 @@ st.markdown(
             max-width: 100% !important;
         }
 
-        /* =========================
-           SIDEBAR TRÁI
-        ========================= */
-
+        /* Sidebar trái */
         section[data-testid="stSidebar"] {
-            background: #053151 !important;
-            border-right: 1px solid rgba(255,255,255,0.16);
+            background: var(--aideom-blue) !important;
+            border-right: 1px solid rgba(248, 241, 227, 0.24);
         }
 
         section[data-testid="stSidebar"] * {
-            color: #F8F1E3 !important;
+            color: var(--aideom-cream) !important;
         }
 
         section[data-testid="stSidebar"] hr {
@@ -60,29 +96,29 @@ st.markdown(
             text-align: left;
             border-radius: 14px;
             padding: 0.65rem 0.9rem;
-            font-weight: 700;
+            font-weight: 750;
             font-size: 0.98rem;
-            border: 1px solid rgba(248, 241, 227, 0.22);
+            border: 1px solid rgba(248, 241, 227, 0.24);
             box-shadow: none;
             transition: all 0.18s ease;
         }
 
         section[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
             background: rgba(248, 241, 227, 0.06) !important;
-            color: #F8F1E3 !important;
+            color: var(--aideom-cream) !important;
         }
 
         section[data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
             background: rgba(228, 136, 55, 0.35) !important;
-            border-color: #E48837 !important;
+            border-color: var(--aideom-orange) !important;
             transform: translateX(2px);
         }
 
         section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-            background: #E48837 !important;
+            background: var(--aideom-orange) !important;
             color: #ffffff !important;
-            border: 1px solid #E48837 !important;
-            box-shadow: 0 8px 18px rgba(228, 136, 55, 0.30);
+            border: 1px solid var(--aideom-orange) !important;
+            box-shadow: 0 8px 18px rgba(228, 136, 55, 0.32);
         }
 
         .sidebar-subtitle {
@@ -96,67 +132,88 @@ st.markdown(
             margin-top: 1rem;
             margin-bottom: 0.45rem;
             font-size: 0.92rem;
-            font-weight: 800;
-            color: #F8F1E3 !important;
+            font-weight: 850;
+            color: var(--aideom-cream) !important;
             letter-spacing: 0.02em;
         }
 
-        /* =========================
-           TEXT PHẦN GIẢI BÀI
-        ========================= */
+        /* Text chính */
+        section.main,
+        section.main *,
+        .main,
+        .main *,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stAppViewContainer"] * {
+            color: var(--aideom-blue) !important;
+        }
 
         h1, h2, h3, h4, h5, h6 {
-            color: #053151 !important;
+            color: var(--aideom-blue) !important;
             font-weight: 850 !important;
         }
 
-        p, li, span, label, div {
-            color: inherit;
-        }
-
-        .stMarkdown, .stText, .stCaption {
-            color: #053151 !important;
-        }
-
         [data-testid="stMarkdownContainer"] {
-            color: #053151 !important;
+            color: var(--aideom-blue) !important;
         }
 
-        /* =========================
-           CARD / KHỐI NỘI DUNG
-        ========================= */
+        [data-testid="stCaptionContainer"] {
+            color: rgba(5, 49, 81, 0.75) !important;
+        }
 
+        p, li, label, span {
+            color: var(--aideom-blue) !important;
+        }
+
+        /* Highlight code như numpy, pandas, A_t */
+        code {
+            background: #111827 !important;
+            color: #86efac !important;
+            border-radius: 8px !important;
+            padding: 0.15rem 0.42rem !important;
+            font-weight: 750 !important;
+        }
+
+        pre,
+        pre code {
+            background: #111827 !important;
+            color: #86efac !important;
+            border-radius: 14px !important;
+        }
+
+        /* Card */
         .card {
-            background: rgba(255, 255, 255, 0.58);
+            background: var(--aideom-white) !important;
             border: 1px solid rgba(5, 49, 81, 0.16);
             border-radius: 22px;
             padding: 24px;
             margin-bottom: 18px;
             box-shadow: 0 10px 28px rgba(5, 49, 81, 0.10);
-            color: #053151 !important;
+            color: var(--aideom-blue) !important;
         }
 
         .card h1,
         .card h2,
         .card h3,
-        .card p {
-            color: #053151 !important;
+        .card p,
+        .card span {
+            color: var(--aideom-blue) !important;
         }
 
         .pill {
             display: inline-block;
             padding: 6px 13px;
             border-radius: 999px;
-            background: #E48837;
+            background: var(--aideom-orange);
             color: white !important;
-            font-weight: 700;
+            font-weight: 750;
             font-size: 13px;
             margin-right: 8px;
             margin-bottom: 8px;
         }
 
+        /* Metric */
         div[data-testid="stMetric"] {
-            background: rgba(255, 255, 255, 0.66);
+            background: var(--aideom-white) !important;
             border: 1px solid rgba(5, 49, 81, 0.18);
             border-radius: 18px;
             padding: 18px;
@@ -165,33 +222,95 @@ st.markdown(
 
         div[data-testid="stMetric"] label,
         div[data-testid="stMetric"] div {
-            color: #053151 !important;
+            color: var(--aideom-blue) !important;
         }
 
-        /* =========================
-           TAB
-        ========================= */
-
+        /* Tabs */
         button[data-baseweb="tab"] {
-            color: #053151 !important;
-            font-weight: 700 !important;
+            color: var(--aideom-blue) !important;
+            font-weight: 750 !important;
         }
 
         button[data-baseweb="tab"][aria-selected="true"] {
-            color: #E48837 !important;
-            border-bottom-color: #E48837 !important;
+            color: var(--aideom-orange) !important;
+            border-bottom-color: var(--aideom-orange) !important;
         }
 
         div[data-baseweb="tab-highlight"] {
-            background-color: #E48837 !important;
+            background-color: var(--aideom-orange) !important;
         }
 
-        /* =========================
-           EXPANDER THAM SỐ TRONG BÀI
-        ========================= */
+        /* Bảng */
+        div[data-testid="stDataFrame"],
+        div[data-testid="stTable"],
+        div[data-testid="stDataFrame"] div,
+        div[data-testid="stTable"] div {
+            background: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
+        }
 
+        div[data-testid="stDataFrame"],
+        div[data-testid="stTable"] {
+            border-radius: 18px !important;
+            overflow: hidden !important;
+            border: 1px solid rgba(5, 49, 81, 0.16) !important;
+            box-shadow: 0 8px 20px rgba(5, 49, 81, 0.08);
+            background: var(--aideom-white) !important;
+        }
+
+        table {
+            background: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
+            border-collapse: collapse !important;
+        }
+
+        thead,
+        tbody,
+        tr,
+        th,
+        td {
+            background: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
+            border-color: rgba(5, 49, 81, 0.16) !important;
+        }
+
+        th {
+            font-weight: 850 !important;
+            color: var(--aideom-blue) !important;
+            background: var(--aideom-white) !important;
+        }
+
+        td {
+            color: var(--aideom-blue) !important;
+            background: var(--aideom-white) !important;
+        }
+
+        .stDataFrame,
+        .stDataFrame * {
+            background-color: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
+        }
+
+        /* Biểu đồ */
+        div[data-testid="stPlotlyChart"],
+        div[data-testid="stVegaLiteChart"],
+        div[data-testid="stPyplot"] {
+            background: var(--aideom-white) !important;
+            border-radius: 18px;
+            padding: 10px;
+            border: 1px solid rgba(5, 49, 81, 0.12);
+            box-shadow: 0 8px 20px rgba(5, 49, 81, 0.08);
+        }
+
+        div[data-testid="stPlotlyChart"] *,
+        div[data-testid="stVegaLiteChart"] *,
+        div[data-testid="stPyplot"] * {
+            color: var(--aideom-blue) !important;
+        }
+
+        /* Khối tham số inline */
         div[data-testid="stExpander"] {
-            background: rgba(255, 255, 255, 0.58) !important;
+            background: var(--aideom-white) !important;
             border: 1px solid rgba(5, 49, 81, 0.18) !important;
             border-radius: 18px !important;
             box-shadow: 0 8px 20px rgba(5, 49, 81, 0.08);
@@ -200,45 +319,50 @@ st.markdown(
         }
 
         div[data-testid="stExpander"] summary {
-            color: #053151 !important;
-            font-weight: 800 !important;
+            color: var(--aideom-blue) !important;
+            font-weight: 850 !important;
         }
 
         div[data-testid="stExpander"] label,
         div[data-testid="stExpander"] p,
         div[data-testid="stExpander"] span,
         div[data-testid="stExpander"] div {
-            color: #053151 !important;
+            color: var(--aideom-blue) !important;
         }
 
-        /* =========================
-           INPUT / SLIDER / SELECT
-        ========================= */
-
+        /* Input / slider / select */
         .stSlider label,
         .stNumberInput label,
         .stSelectbox label,
         .stCheckbox label,
         .stRadio label,
         .stTextInput label {
-            color: #053151 !important;
-            font-weight: 700 !important;
+            color: var(--aideom-blue) !important;
+            font-weight: 750 !important;
         }
 
-        .stSlider [data-testid="stTickBar"] {
-            color: #053151 !important;
+        div[data-baseweb="input"],
+        div[data-baseweb="select"] {
+            background: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
+            border-radius: 12px !important;
         }
 
-        div[data-baseweb="slider"] > div {
-            color: #E48837 !important;
+        input {
+            background: var(--aideom-white) !important;
+            color: var(--aideom-blue) !important;
         }
 
         .stButton > button {
-            background: #E48837 !important;
+            background: var(--aideom-orange) !important;
             color: #ffffff !important;
-            border: 1px solid #E48837 !important;
+            border: 1px solid var(--aideom-orange) !important;
             border-radius: 12px !important;
-            font-weight: 750 !important;
+            font-weight: 800 !important;
+        }
+
+        .stButton > button * {
+            color: #ffffff !important;
         }
 
         .stButton > button:hover {
@@ -246,43 +370,15 @@ st.markdown(
             border-color: #cf772d !important;
         }
 
-        /* =========================
-           DATAFRAME / TABLE
-        ========================= */
-
-        div[data-testid="stDataFrame"] {
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        table {
-            color: #053151 !important;
-        }
-
-        /* =========================
-           PLOTLY / CHART CONTAINER
-        ========================= */
-
-        div[data-testid="stPlotlyChart"],
-        div[data-testid="stVegaLiteChart"],
-        div[data-testid="stPyplot"] {
-            background: rgba(255, 255, 255, 0.42);
-            border-radius: 18px;
-            padding: 8px;
-            border: 1px solid rgba(5, 49, 81, 0.10);
-        }
-
-        /* =========================
-           ALERT BOX
-        ========================= */
-
         div[data-testid="stAlert"] {
             border-radius: 15px;
+            background: var(--aideom-white) !important;
+            border: 1px solid rgba(5, 49, 81, 0.14) !important;
         }
 
-        /* =========================
-           MOBILE
-        ========================= */
+        div[data-testid="stAlert"] * {
+            color: var(--aideom-blue) !important;
+        }
 
         @media (max-width: 900px) {
             .block-container {
@@ -307,6 +403,197 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+
+# =========================
+# STYLE BẢNG VÀ BIỂU ĐỒ
+# =========================
+
+def _style_dataframe_for_aideom(data):
+    if pd is None:
+        return data
+
+    try:
+        from pandas.io.formats.style import Styler
+
+        if isinstance(data, Styler):
+            return (
+                data
+                .set_properties(**{
+                    "background-color": "#FFFFFF",
+                    "color": "#053151",
+                    "border-color": "rgba(5,49,81,0.16)",
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("font-weight", "850"),
+                            ("border-color", "rgba(5,49,81,0.16)"),
+                        ],
+                    },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("border-color", "rgba(5,49,81,0.16)"),
+                        ],
+                    },
+                    {
+                        "selector": "table",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("border-collapse", "collapse"),
+                        ],
+                    },
+                ])
+            )
+
+        if isinstance(data, pd.Series):
+            data = data.to_frame()
+
+        if isinstance(data, pd.DataFrame):
+            return (
+                data.style
+                .set_properties(**{
+                    "background-color": "#FFFFFF",
+                    "color": "#053151",
+                    "border-color": "rgba(5,49,81,0.16)",
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("font-weight", "850"),
+                            ("border-color", "rgba(5,49,81,0.16)"),
+                        ],
+                    },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("border-color", "rgba(5,49,81,0.16)"),
+                        ],
+                    },
+                    {
+                        "selector": "table",
+                        "props": [
+                            ("background-color", "#FFFFFF"),
+                            ("color", "#053151"),
+                            ("border-collapse", "collapse"),
+                        ],
+                    },
+                ])
+            )
+
+    except Exception:
+        return data
+
+    return data
+
+
+_original_dataframe = st.dataframe
+_original_table = st.table
+_original_plotly_chart = st.plotly_chart
+
+
+def _aideom_dataframe(data=None, *args, **kwargs):
+    return _original_dataframe(_style_dataframe_for_aideom(data), *args, **kwargs)
+
+
+def _aideom_table(data=None, *args, **kwargs):
+    return _original_table(_style_dataframe_for_aideom(data), *args, **kwargs)
+
+
+def _aideom_plotly_chart(figure_or_data=None, *args, **kwargs):
+    fig = figure_or_data
+
+    try:
+        if hasattr(fig, "update_layout"):
+            fig.update_layout(
+                template="plotly_white",
+                paper_bgcolor="#FFFFFF",
+                plot_bgcolor="#FFFFFF",
+                font=dict(color="#053151"),
+                title_font=dict(color="#053151"),
+                legend=dict(
+                    bgcolor="rgba(255,255,255,0)",
+                    font=dict(color="#053151")
+                ),
+                margin=dict(l=40, r=30, t=60, b=40),
+            )
+
+            fig.update_xaxes(
+                color="#053151",
+                gridcolor="rgba(5,49,81,0.12)",
+                zerolinecolor="rgba(5,49,81,0.18)",
+                linecolor="rgba(5,49,81,0.30)",
+            )
+
+            fig.update_yaxes(
+                color="#053151",
+                gridcolor="rgba(5,49,81,0.12)",
+                zerolinecolor="rgba(5,49,81,0.18)",
+                linecolor="rgba(5,49,81,0.30)",
+            )
+    except Exception:
+        pass
+
+    return _original_plotly_chart(fig, *args, **kwargs)
+
+
+st.dataframe = _aideom_dataframe
+st.table = _aideom_table
+st.plotly_chart = _aideom_plotly_chart
+
+
+# =========================
+# SIDEBAR INLINE PROXY
+# =========================
+
+class InlineSidebarProxy:
+    """
+    Chuyển các lệnh st.sidebar.xxx trong module con thành khối tham số inline.
+
+    Ưu điểm:
+    - Sidebar trái vẫn chỉ là menu.
+    - Không tạo cột tham số bên phải.
+    - Không tạo khối tham số to cố định trên đầu.
+    - Widget sẽ xuất hiện tại vị trí module gọi st.sidebar.xxx.
+    """
+
+    def __init__(self):
+        self._box = None
+
+    def _ensure_box(self):
+        if self._box is None:
+            self._box = st.expander(
+                "⚙️ Tùy chỉnh tham số cho phần này",
+                expanded=False
+            )
+        return self._box
+
+    def __enter__(self):
+        box = self._ensure_box()
+        return box.__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        box = self._ensure_box()
+        return box.__exit__(exc_type, exc_value, traceback)
+
+    def __getattr__(self, name):
+        def wrapper(*args, **kwargs):
+            box = self._ensure_box()
+            attr = getattr(box, name)
+            return attr(*args, **kwargs)
+        return wrapper
 
 
 # =========================
@@ -474,7 +761,7 @@ menu = st.session_state["current_menu"]
 
 
 # =========================
-# HÀM HIỂN THỊ PLACEHOLDER
+# PLACEHOLDER
 # =========================
 
 def module_dang_bo_sung(module_name: str):
@@ -500,49 +787,15 @@ def module_dang_bo_sung(module_name: str):
 
 
 # =========================
-# HÀM GỌI MODULE AN TOÀN
+# GỌI MODULE AN TOÀN
 # =========================
 
 def render_module(module_paths, module_label: str):
-    """
-    module_paths: danh sách đường dẫn module có thể thử import.
-
-    Bản giao diện mới:
-    - Sidebar trái chỉ còn menu.
-    - Không còn cột tham số bên phải.
-    - Nếu module cũ vẫn dùng st.sidebar.slider / st.sidebar.selectbox...
-      thì app tự chuyển các widget đó vào một khối expander trong nội dung bài.
-    """
-
     last_error = None
     original_sidebar = st.sidebar
 
-    st.markdown(
-        """
-        <style>
-            .legacy-param-note {
-                background: rgba(228, 136, 55, 0.12);
-                border: 1px solid rgba(228, 136, 55, 0.35);
-                border-radius: 18px;
-                padding: 14px 18px;
-                margin-bottom: 18px;
-                color: #053151 !important;
-                font-weight: 650;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-    legacy_param_box = st.expander(
-        "⚙️ Tùy chỉnh tham số mô phỏng",
-        expanded=False
-    )
-
     try:
-        # Chuyển toàn bộ st.sidebar trong các module cũ vào expander trên nội dung chính.
-        # Nhờ vậy sidebar trái không bị lẫn slider/tham số nữa.
-        st.sidebar = legacy_param_box
+        st.sidebar = InlineSidebarProxy()
 
         for module_path in module_paths:
             try:
