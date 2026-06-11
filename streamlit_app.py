@@ -22,7 +22,48 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+st.markdown(
+    """
+    <style>
+    /* Luôn giữ sidebar mở */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+        visibility: visible !important;
+        transform: translateX(0px) !important;
+        min-width: 320px !important;
+        max-width: 320px !important;
+        width: 320px !important;
+        z-index: 999999 !important;
+    }
 
+    section[data-testid="stSidebar"] > div {
+        width: 320px !important;
+        min-width: 320px !important;
+        max-width: 320px !important;
+    }
+
+    /* Ẩn nút thu gọn sidebar */
+    button[title="Hide sidebar"],
+    button[title="Show sidebar"],
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* Giữ nội dung chính không tràn sát sidebar */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 # =========================
 # MÀU CHỦ ĐẠO
 # =========================
