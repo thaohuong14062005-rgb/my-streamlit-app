@@ -9,8 +9,8 @@ import plotly.graph_objects as go
 
 
 # =========================================================
-# BÀI 1 — COBB-DOUGLAS MỞ RỘNG
-# Giao diện gọn: Kết quả TFP | Phân rã | Dự báo 2030 | Chính sách
+# BÀI 1 — HÀM SẢN XUẤT COBB-DOUGLAS MỞ RỘNG
+# Gọn, đúng từng mục 1.4.1 -> 1.5, không dùng 3D
 # =========================================================
 
 
@@ -29,7 +29,7 @@ def assignment_base_data():
 
 
 def find_file(filename):
-    paths = [
+    possible_paths = [
         filename,
         f"./{filename}",
         f"data/{filename}",
@@ -38,7 +38,7 @@ def find_file(filename):
         f"./datasets/{filename}",
     ]
 
-    for path in paths:
+    for path in possible_paths:
         if os.path.exists(path):
             return path
 
@@ -46,6 +46,10 @@ def find_file(filename):
 
 
 def load_data():
+    """
+    Ưu tiên lấy GDP và D từ vietnam_macro_2020_2025.csv.
+    K, L, AI, H lấy theo bảng đề bài.
+    """
     base = assignment_base_data()
     path = find_file("vietnam_macro_2020_2025.csv")
 
@@ -58,34 +62,39 @@ def load_data():
         if "year" in macro.columns:
             macro = macro.rename(columns={"year": "Year"})
 
-        cols = ["Year", "GDP_trillion_VND", "digital_economy_share_GDP_pct"]
-        macro = macro[[c for c in cols if c in macro.columns]].copy()
+        keep_cols = ["Year", "GDP_trillion_VND", "digital_economy_share_GDP_pct"]
+        macro = macro[[c for c in keep_cols if c in macro.columns]].copy()
 
-        macro["Year"] = pd.to_numeric(macro["Year"], errors="coerce").astype("Int64")
-
-        if "GDP_trillion_VND" in macro.columns:
-            macro["GDP_trillion_VND"] = pd.to_numeric(macro["GDP_trillion_VND"], errors="coerce")
+        macro["Year"] = pd.to_numeric(macro["Year"], errors="coerce")
+        macro["GDP_trillion_VND"] = pd.to_numeric(
+            macro.get("GDP_trillion_VND"), errors="coerce"
+        )
 
         if "digital_economy_share_GDP_pct" in macro.columns:
-            macro["D_from_csv"] = pd.to_numeric(
+            macro["D_csv"] = pd.to_numeric(
                 macro["digital_economy_share_GDP_pct"], errors="coerce"
             )
             macro = macro.drop(columns=["digital_economy_share_GDP_pct"])
+        else:
+            macro["D_csv"] = np.nan
 
-        df = base.drop(columns=["GDP_trillion_VND", "D"]).merge(macro, on="Year", how="left")
+        macro = macro.dropna(subset=["Year"]).copy()
+        macro["Year"] = macro["Year"].astype(int)
+
+        df = base.drop(columns=["GDP_trillion_VND", "D"]).merge(
+            macro, on="Year", how="left"
+        )
+
         fallback = base[["Year", "GDP_trillion_VND", "D"]].copy()
         df = df.merge(fallback, on="Year", how="left", suffixes=("", "_base"))
 
-        df["GDP_trillion_VND"] = df["GDP_trillion_VND"].fillna(df["GDP_trillion_VND_base"])
-
-        if "D_from_csv" in df.columns:
-            df["D"] = df["D_from_csv"].fillna(df["D"])
-        else:
-            df["D"] = df["D"]
+        df["GDP_trillion_VND"] = df["GDP_trillion_VND"].fillna(
+            df["GDP_trillion_VND_base"]
+        )
+        df["D"] = df["D_csv"].fillna(df["D"])
 
         df = df[["Year", "GDP_trillion_VND", "K", "L", "D", "AI", "H"]]
         df = df.dropna().sort_values("Year").reset_index(drop=True)
-        df["Year"] = df["Year"].astype(int)
 
         return df
 
@@ -96,23 +105,30 @@ def load_data():
 def compute_model(df, alpha, beta, gamma, delta, theta):
     out = df.copy()
 
-    Y = out["GDP_trillion_VND"].values
-    K = out["K"].values
-    L = out["L"].values
-    D = out["D"].values
-    AI = out["AI"].values
-    H = out["H"].values
+    Y = out["GDP_trillion_VND"].astype(float).values
+    K = out["K"].astype(float).values
+    L = out["L"].astype(float).values
+    D = out["D"].astype(float).values
+    AI = out["AI"].astype(float).values
+    H = out["H"].astype(float).values
 
-    base = (K**alpha) * (L**beta) * (D**gamma) * (AI**delta) * (H**theta)
+    production_part = (
+        (K ** alpha)
+        * (L ** beta)
+        * (D ** gamma)
+        * (AI ** delta)
+        * (H ** theta)
+    )
 
-    A = Y / base
+    A = Y / production_part
     A_mean = A.mean()
-    Y_hat = A_mean * base
+    Y_hat = A_mean * production_part
     mape = np.mean(np.abs((Y - Y_hat) / Y)) * 100
 
     out["A_t"] = A
     out["A_growth_pct"] = out["A_t"].pct_change() * 100
     out["Y_hat"] = Y_hat
+    out["Error"] = Y - Y_hat
     out["APE_pct"] = np.abs((Y - Y_hat) / Y) * 100
 
     return out, A_mean, mape
@@ -131,34 +147,36 @@ def growth_decomposition(df, alpha, beta, gamma, delta, theta):
 
     detail = pd.DataFrame(
         {
-            "period": [f"{years[i]}-{years[i + 1]}" for i in range(len(years) - 1)],
-            "GDP_growth_pct": dlnY * 100,
-            "K": alpha * dlnK * 100,
-            "L": beta * dlnL * 100,
-            "D": gamma * dlnD * 100,
-            "AI": delta * dlnAI * 100,
-            "H": theta * dlnH * 100,
-            "TFP": dlnA * 100,
+            "Giai đoạn": [f"{years[i]}-{years[i + 1]}" for i in range(len(years) - 1)],
+            "GDP (%)": dlnY * 100,
+            "K (%)": alpha * dlnK * 100,
+            "L (%)": beta * dlnL * 100,
+            "D (%)": gamma * dlnD * 100,
+            "AI (%)": delta * dlnAI * 100,
+            "H (%)": theta * dlnH * 100,
+            "TFP (%)": dlnA * 100,
         }
     )
 
-    avg_growth = detail["GDP_growth_pct"].mean()
+    avg_growth = detail["GDP (%)"].mean()
 
     avg = pd.DataFrame(
         {
-            "factor": ["K", "L", "D", "AI", "H", "TFP"],
-            "avg_log_contribution": [
-                detail["K"].mean(),
-                detail["L"].mean(),
-                detail["D"].mean(),
-                detail["AI"].mean(),
-                detail["H"].mean(),
-                detail["TFP"].mean(),
+            "Yếu tố": ["K", "L", "D", "AI", "H", "TFP"],
+            "Đóng góp bình quân (% điểm)": [
+                detail["K (%)"].mean(),
+                detail["L (%)"].mean(),
+                detail["D (%)"].mean(),
+                detail["AI (%)"].mean(),
+                detail["H (%)"].mean(),
+                detail["TFP (%)"].mean(),
             ],
         }
     )
 
-    avg["share_of_growth_pct"] = avg["avg_log_contribution"] / avg_growth * 100
+    avg["Tỷ trọng tăng trưởng (%)"] = (
+        avg["Đóng góp bình quân (% điểm)"] / avg_growth * 100
+    )
 
     return detail, avg, avg_growth
 
@@ -190,7 +208,7 @@ def forecast_2030(
     AI = np.linspace(last["AI"], target_AI, n + 1)[1:]
     H = np.linspace(last["H"], target_H, n + 1)[1:]
 
-    Y = A * (K**alpha) * (L**beta) * (D**gamma) * (AI**delta) * (H**theta)
+    Y = A * (K ** alpha) * (L ** beta) * (D ** gamma) * (AI ** delta) * (H ** theta)
 
     return pd.DataFrame(
         {
@@ -206,7 +224,7 @@ def forecast_2030(
     )
 
 
-def tfp_trend_text(df):
+def tfp_trend(df):
     change = (df["A_t"].iloc[-1] / df["A_t"].iloc[0] - 1) * 100
 
     if change > 3:
@@ -246,7 +264,7 @@ def render():
             font-size: 1.05rem;
         }
         div[data-testid="stMetricValue"] {
-            font-size: 1.45rem;
+            font-size: 1.42rem;
         }
         </style>
         """,
@@ -257,7 +275,7 @@ def render():
         """
         <div class="bai1-card">
             <div class="bai1-title">Bài 1. Hàm sản xuất Cobb-Douglas mở rộng</div>
-            <div class="bai1-sub">Phân tích TFP, dự báo GDP và đóng góp tăng trưởng</div>
+            <div class="bai1-sub">Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP 2030</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -266,98 +284,137 @@ def render():
     # =========================
     # Sidebar
     # =========================
-    st.sidebar.header("Bài 1")
+    st.sidebar.header("⚙️ Bài 1")
 
+    st.sidebar.markdown("### Hệ số")
     alpha = st.sidebar.slider("α - K", 0.00, 0.80, 0.33, 0.01)
     beta = st.sidebar.slider("β - L", 0.00, 0.80, 0.42, 0.01)
     gamma = st.sidebar.slider("γ - D", 0.00, 0.50, 0.10, 0.01)
     delta = st.sidebar.slider("δ - AI", 0.00, 0.50, 0.08, 0.01)
     theta = st.sidebar.slider("θ - H", 0.00, 0.50, 0.07, 0.01)
 
-    st.sidebar.divider()
+    total_coef = alpha + beta + gamma + delta + theta
+    st.sidebar.caption(f"Tổng hệ số: {total_coef:.2f}")
 
+    st.sidebar.markdown("### Kịch bản 2030")
     target_D = st.sidebar.slider("D 2030 (%)", 19.5, 45.0, 30.0, 0.5)
     target_AI = st.sidebar.slider("AI 2030", 80.1, 180.0, 100.0, 1.0)
     target_H = st.sidebar.slider("H 2030 (%)", 29.2, 60.0, 35.0, 0.5)
-
     gK = st.sidebar.slider("Tăng K/năm (%)", 0.0, 15.0, 6.0, 0.1) / 100
     gL = st.sidebar.slider("Tăng L/năm (%)", -2.0, 10.0, 6.0, 0.1) / 100
     gTFP = st.sidebar.slider("Tăng TFP/năm (%)", -2.0, 5.0, 1.2, 0.1) / 100
 
-    df = load_data()
-    model_df, A_mean, mape = compute_model(df, alpha, beta, gamma, delta, theta)
-    detail_df, avg_df, avg_growth = growth_decomposition(model_df, alpha, beta, gamma, delta, theta)
+    # =========================
+    # Data + model
+    # =========================
+    raw_df = load_data()
+    model_df, A_mean, mape = compute_model(raw_df, alpha, beta, gamma, delta, theta)
+    detail_df, avg_df, avg_growth = growth_decomposition(
+        model_df, alpha, beta, gamma, delta, theta
+    )
     forecast_df = forecast_2030(
-        model_df, alpha, beta, gamma, delta, theta,
-        target_D, target_AI, target_H, gK, gL, gTFP
+        model_df,
+        alpha,
+        beta,
+        gamma,
+        delta,
+        theta,
+        target_D,
+        target_AI,
+        target_H,
+        gK,
+        gL,
+        gTFP,
     )
 
-    trend, tfp_change = tfp_trend_text(model_df)
+    trend, tfp_change = tfp_trend(model_df)
 
-    largest_new = (
-        avg_df[avg_df["factor"].isin(["D", "AI", "H"])]
-        .assign(abs_share=lambda x: x["share_of_growth_pct"].abs())
-        .sort_values("abs_share", ascending=False)
-        .iloc[0]
-    )
+    new_factors = avg_df[avg_df["Yếu tố"].isin(["D", "AI", "H"])].copy()
+    largest_new = new_factors.assign(
+        abs_share=lambda x: x["Tỷ trọng tăng trưởng (%)"].abs()
+    ).sort_values("abs_share", ascending=False).iloc[0]
 
+    # =========================
+    # Tabs đúng từng phần
+    # =========================
     tabs = st.tabs(
         [
-            "Kết quả TFP",
-            "Phân rã tăng trưởng",
-            "Dự báo 2030",
-            "Thảo luận chính sách",
+            "1.4.1 TFP",
+            "1.4.2 MAPE",
+            "1.4.3 Phân rã",
+            "1.4.4 Dự báo 2030",
+            "1.5 Chính sách",
         ]
     )
 
     # =====================================================
-    # TAB 1 — TFP + MAPE
+    # 1.4.1
     # =====================================================
     with tabs[0]:
-        st.header("TFP và GDP dự báo")
+        st.header("1.4.1. Kết quả TFP")
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("A trung bình", f"{A_mean:,.2f}")
-        c2.metric("MAPE", f"{mape:.2f}%")
-        c3.metric("TFP 2025", f"{model_df['A_t'].iloc[-1]:,.2f}")
-        c4.metric("Xu hướng", trend)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("A_t 2020", f"{model_df['A_t'].iloc[0]:,.2f}")
+        c2.metric("A_t 2025", f"{model_df['A_t'].iloc[-1]:,.2f}")
+        c3.metric("Xu hướng", trend)
 
-        table = model_df[
-            ["Year", "GDP_trillion_VND", "D", "A_t", "Y_hat", "APE_pct"]
+        table_141 = model_df[
+            ["Year", "GDP_trillion_VND", "K", "L", "D", "AI", "H", "A_t"]
         ].copy()
 
-        table = table.rename(
+        table_141 = table_141.rename(
             columns={
-                "Year": "year",
-                "GDP_trillion_VND": "GDP",
-                "D": "D_pct",
-                "A_t": "TFP_A",
-                "Y_hat": "GDP_hat",
-                "APE_pct": "APE_pct",
+                "Year": "Năm",
+                "GDP_trillion_VND": "Y",
+                "A_t": "TFP A_t",
             }
         )
 
-        st.dataframe(table.round(4), use_container_width=True, hide_index=True)
+        st.dataframe(table_141.round(3), use_container_width=True, hide_index=True)
 
-        fig1 = go.Figure()
-        fig1.add_trace(
-            go.Scatter(
-                x=model_df["Year"],
-                y=model_df["A_t"],
-                mode="lines+markers",
-                name="TFP A_t",
-            )
-        )
-        fig1.update_layout(
+        fig = px.line(
+            model_df,
+            x="Year",
+            y="A_t",
+            markers=True,
             title="Xu hướng TFP A_t",
-            xaxis_title="year",
-            yaxis_title="A_t",
-            height=420,
         )
-        st.plotly_chart(fig1, use_container_width=True)
+        fig.update_layout(xaxis_title="Năm", yaxis_title="A_t", height=430)
+        st.plotly_chart(fig, use_container_width=True)
 
-        fig2 = go.Figure()
-        fig2.add_trace(
+        st.success(
+            f"TFP giai đoạn 2020-2025 {trend}, thay đổi khoảng {tfp_change:.2f}%."
+        )
+
+    # =====================================================
+    # 1.4.2
+    # =====================================================
+    with tabs[1]:
+        st.header("1.4.2. GDP dự báo và MAPE")
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("A trung bình", f"{A_mean:,.2f}")
+        c2.metric("MAPE", f"{mape:.2f}%")
+        c3.metric("Sai số TB", f"{model_df['Error'].abs().mean():,.1f}")
+
+        table_142 = model_df[
+            ["Year", "GDP_trillion_VND", "Y_hat", "Error", "APE_pct"]
+        ].copy()
+
+        table_142 = table_142.rename(
+            columns={
+                "Year": "Năm",
+                "GDP_trillion_VND": "GDP thực tế",
+                "Y_hat": "GDP dự báo",
+                "Error": "Sai số",
+                "APE_pct": "APE (%)",
+            }
+        )
+
+        st.dataframe(table_142.round(3), use_container_width=True, hide_index=True)
+
+        fig = go.Figure()
+        fig.add_trace(
             go.Scatter(
                 x=model_df["Year"],
                 y=model_df["GDP_trillion_VND"],
@@ -365,7 +422,7 @@ def render():
                 name="GDP thực tế",
             )
         )
-        fig2.add_trace(
+        fig.add_trace(
             go.Scatter(
                 x=model_df["Year"],
                 y=model_df["Y_hat"],
@@ -373,54 +430,85 @@ def render():
                 name="GDP dự báo",
             )
         )
-        fig2.update_layout(
-            title="GDP thực tế và GDP dự báo",
-            xaxis_title="year",
-            yaxis_title="GDP, nghìn tỷ VND",
-            height=420,
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-
-        st.success(
-            f"TFP giai đoạn 2020-2025 có xu hướng {trend}; MAPE = {mape:.2f}%."
-        )
-
-    # =====================================================
-    # TAB 2 — PHÂN RÃ
-    # =====================================================
-    with tabs[1]:
-        st.header("Phân rã tăng trưởng")
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("GDP tăng trưởng TB", f"{avg_growth:.2f}%")
-        c2.metric("Yếu tố mới nổi bật", largest_new["factor"])
-        c3.metric("Tỷ trọng", f"{largest_new['share_of_growth_pct']:.1f}%")
-
-        st.dataframe(avg_df.round(4), use_container_width=True, hide_index=True)
-
-        fig = px.bar(
-            avg_df,
-            x="factor",
-            y="share_of_growth_pct",
-            text=avg_df["share_of_growth_pct"].round(1).astype(str) + "%",
-            title="Tỷ trọng đóng góp tăng trưởng",
-        )
-        fig.update_traces(textposition="outside")
         fig.update_layout(
-            xaxis_title="factor",
-            yaxis_title="share_of_growth_pct",
-            height=450,
+            title="GDP thực tế và GDP dự báo",
+            xaxis_title="Năm",
+            yaxis_title="GDP, nghìn tỷ VND",
+            height=430,
         )
         st.plotly_chart(fig, use_container_width=True)
 
-        with st.expander("Chi tiết theo giai đoạn"):
-            st.dataframe(detail_df.round(4), use_container_width=True, hide_index=True)
+        fig_ape = px.bar(
+            model_df,
+            x="Year",
+            y="APE_pct",
+            text=model_df["APE_pct"].round(2),
+            title="APE theo năm",
+        )
+        fig_ape.update_traces(textposition="outside")
+        fig_ape.update_layout(xaxis_title="Năm", yaxis_title="APE (%)", height=390)
+        st.plotly_chart(fig_ape, use_container_width=True)
+
+        st.success(f"MAPE = {mape:.2f}%, cho thấy mức sai số của mô hình dự báo.")
 
     # =====================================================
-    # TAB 3 — DỰ BÁO 2030
+    # 1.4.3
     # =====================================================
     with tabs[2]:
-        st.header("Dự báo GDP 2030")
+        st.header("1.4.3. Phân rã tăng trưởng")
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("GDP tăng trưởng TB", f"{avg_growth:.2f}%")
+        c2.metric("Yếu tố mới nổi bật", largest_new["Yếu tố"])
+        c3.metric("Tỷ trọng", f"{largest_new['Tỷ trọng tăng trưởng (%)']:.1f}%")
+
+        st.subheader("Đóng góp bình quân")
+        st.dataframe(avg_df.round(4), use_container_width=True, hide_index=True)
+
+        fig_avg = px.bar(
+            avg_df,
+            x="Yếu tố",
+            y="Tỷ trọng tăng trưởng (%)",
+            text=avg_df["Tỷ trọng tăng trưởng (%)"].round(1).astype(str) + "%",
+            title="Tỷ trọng đóng góp tăng trưởng",
+        )
+        fig_avg.update_traces(textposition="outside")
+        fig_avg.update_layout(
+            xaxis_title="Yếu tố",
+            yaxis_title="Tỷ trọng (%)",
+            height=430,
+        )
+        st.plotly_chart(fig_avg, use_container_width=True)
+
+        st.subheader("Theo từng giai đoạn")
+        st.dataframe(detail_df.round(4), use_container_width=True, hide_index=True)
+
+        detail_long = detail_df.melt(
+            id_vars="Giai đoạn",
+            value_vars=["K (%)", "L (%)", "D (%)", "AI (%)", "H (%)", "TFP (%)"],
+            var_name="Nguồn",
+            value_name="Đóng góp",
+        )
+
+        fig_detail = px.bar(
+            detail_long,
+            x="Giai đoạn",
+            y="Đóng góp",
+            color="Nguồn",
+            title="Phân rã theo giai đoạn",
+        )
+        fig_detail.update_layout(barmode="relative", height=430)
+        st.plotly_chart(fig_detail, use_container_width=True)
+
+        st.success(
+            f"Trong nhóm D, AI, H, yếu tố đóng góp nổi bật nhất là {largest_new['Yếu tố']}."
+        )
+
+    # =====================================================
+    # 1.4.4
+    # =====================================================
+    with tabs[3]:
+        st.header("1.4.4. Dự báo GDP 2030")
 
         row_2030 = forecast_df[forecast_df["Year"] == 2030].iloc[0]
         y_2025 = model_df["GDP_trillion_VND"].iloc[-1]
@@ -432,76 +520,59 @@ def render():
         c2.metric("GDP 2030", f"{y_2030:,.1f}")
         c3.metric("Tăng 2025-2030", f"{growth_2030:.1f}%")
 
-        summary_2030 = pd.DataFrame(
-            {
-                "indicator": [
-                    "K_2030",
-                    "L_2030",
-                    "D_2030",
-                    "AI_2030",
-                    "H_2030",
-                    "A_2030",
-                    "GDP_2030_forecast",
-                ],
-                "value": [
-                    row_2030["K"],
-                    row_2030["L"],
-                    row_2030["D"],
-                    row_2030["AI"],
-                    row_2030["H"],
-                    row_2030["A_t"],
-                    row_2030["GDP_forecast"],
-                ],
+        table_144 = forecast_df.rename(
+            columns={
+                "Year": "Năm",
+                "A_t": "TFP",
+                "GDP_forecast": "GDP dự báo",
             }
         )
 
-        st.dataframe(summary_2030.round(4), use_container_width=True, hide_index=True)
+        st.dataframe(table_144.round(3), use_container_width=True, hide_index=True)
 
         actual = model_df[["Year", "GDP_trillion_VND"]].rename(
-            columns={"GDP_trillion_VND": "GDP"}
+            columns={"Year": "Năm", "GDP_trillion_VND": "GDP"}
         )
-        actual["type"] = "Thực tế"
+        actual["Loại"] = "Thực tế"
 
         future = forecast_df[["Year", "GDP_forecast"]].rename(
-            columns={"GDP_forecast": "GDP"}
+            columns={"Year": "Năm", "GDP_forecast": "GDP"}
         )
-        future["type"] = "Dự báo"
+        future["Loại"] = "Dự báo"
 
         chart_df = pd.concat([actual, future], ignore_index=True)
 
         fig = px.line(
             chart_df,
-            x="Year",
+            x="Năm",
             y="GDP",
-            color="type",
+            color="Loại",
             markers=True,
-            title="GDP thực tế và dự báo",
+            title="GDP thực tế và dự báo đến 2030",
         )
-        fig.update_layout(
-            xaxis_title="year",
-            yaxis_title="GDP, nghìn tỷ VND",
-            height=450,
-        )
+        fig.update_layout(yaxis_title="GDP, nghìn tỷ VND", height=440)
         st.plotly_chart(fig, use_container_width=True)
 
+        st.success(f"GDP dự báo năm 2030 đạt khoảng {y_2030:,.1f} nghìn tỷ VND.")
+
     # =====================================================
-    # TAB 4 — CHÍNH SÁCH
+    # 1.5
     # =====================================================
-    with tabs[3]:
-        st.header("Thảo luận chính sách")
+    with tabs[4]:
+        st.header("1.5. Thảo luận chính sách")
 
         st.markdown(
             f"""
             **a) TFP:** TFP có xu hướng **{trend}** trong giai đoạn 2020-2025, thay đổi khoảng **{tfp_change:.2f}%**.
 
-            **b) Yếu tố mới đóng góp nhiều nhất:** Trong nhóm D, AI, H, yếu tố nổi bật nhất là **{largest_new["factor"]}**, chiếm khoảng **{largest_new["share_of_growth_pct"]:.1f}%** tăng trưởng bình quân.
+            **b) Yếu tố mới nổi bật:** Trong nhóm **D, AI, H**, yếu tố đóng góp lớn nhất là **{largest_new["Yếu tố"]}**, chiếm khoảng **{largest_new["Tỷ trọng tăng trưởng (%)"]:.1f}%** tăng trưởng bình quân.
 
-            **c) Mục tiêu kinh tế số 30% GDP năm 2030:** Có cơ sở khả thi nếu đồng thời đạt 3 điều kiện: mở rộng kinh tế số, tăng năng lực AI và cải thiện nhân lực số.
+            **c) Mục tiêu kinh tế số 30% GDP năm 2030:** Có cơ sở khả thi nếu đồng thời tăng **D**, mở rộng **AI**, nâng **H** và duy trì tăng trưởng **TFP**.
             """
         )
 
         st.info(
-            "Hàm ý: không chỉ tăng D, mà cần nâng đồng thời AI, H và TFP để tăng trưởng bền vững."
+            "Hàm ý chính sách: không chỉ tăng tỷ trọng kinh tế số, mà cần nâng đồng thời năng lực AI, nhân lực số và năng suất tổng hợp."
         )
 
 
