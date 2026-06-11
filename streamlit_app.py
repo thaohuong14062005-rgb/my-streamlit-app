@@ -28,7 +28,7 @@ st.set_page_config(
 # MÀU CHỦ ĐẠO
 # =========================
 MAIN_TEXT = "#053151"
-BG_COLOR = "#F8F1E3"
+BG_COLOR = "#FFFAF1"
 SIDEBAR_BG = "#053151"
 SIDEBAR_TEXT = "#F8F1E3"
 ACCENT = "#E48837"
