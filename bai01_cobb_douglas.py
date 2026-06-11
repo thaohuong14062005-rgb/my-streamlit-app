@@ -13,8 +13,6 @@ BRAND = "#053151"
 
 # =========================================================
 # BÀI 1 — HÀM SẢN XUẤT COBB-DOUGLAS MỞ RỘNG
-# Trình bày gọn, đúng từng mục 1.4.1 -> 1.5
-# Không dùng mô hình 3D
 # =========================================================
 
 
@@ -88,7 +86,6 @@ def load_data():
         macro_small = macro[["Year", "GDP_csv", "D_csv"]].copy()
 
         df = base.merge(macro_small, on="Year", how="left")
-
         df["GDP_trillion_VND"] = df["GDP_csv"].fillna(df["GDP_trillion_VND"])
         df["D"] = df["D_csv"].fillna(df["D"])
 
@@ -173,9 +170,12 @@ def growth_decomposition(df, alpha, beta, gamma, delta, theta):
         }
     )
 
-    avg["Tỷ trọng tăng trưởng (%)"] = (
-        avg["Đóng góp bình quân (% điểm)"] / avg_growth * 100
-    )
+    if abs(avg_growth) > 1e-12:
+        avg["Tỷ trọng tăng trưởng (%)"] = (
+            avg["Đóng góp bình quân (% điểm)"] / avg_growth * 100
+        )
+    else:
+        avg["Tỷ trọng tăng trưởng (%)"] = np.nan
 
     return detail, avg, avg_growth
 
@@ -240,70 +240,80 @@ def tfp_trend(df):
     return trend, change
 
 
-def render_clean_html_table(df, decimals=4):
+def make_styled_table(df, decimals=3):
+    """
+    Bảng trắng, chữ màu BRAND, header chỉ bôi đậm chữ.
+    Không dùng HTML thủ công để tránh lỗi hiển thị raw HTML.
+    """
     show_df = df.copy()
 
+    format_dict = {}
     for col in show_df.columns:
         if pd.api.types.is_numeric_dtype(show_df[col]):
-            if col.lower() in ["year", "năm"]:
-                show_df[col] = show_df[col].map(lambda x: f"{int(x)}" if pd.notna(x) else "")
+            if str(col).lower() in ["year", "năm"]:
+                format_dict[col] = "{:.0f}"
             else:
-                show_df[col] = show_df[col].map(
-                    lambda x: f"{x:.{decimals}f}" if pd.notna(x) else ""
-                )
+                format_dict[col] = "{:." + str(decimals) + "f}"
 
-    css = f"""
-    <style>
-    .clean-table-wrap {{
-        width: 100%;
-        overflow-x: auto;
-        margin-top: 8px;
-        margin-bottom: 16px;
-    }}
-    .clean-table {{
-        width: 100%;
-        border-collapse: collapse;
-        background: #ffffff !important;
-        color: {BRAND} !important;
-        border: 1.5px solid {BRAND};
-        font-size: 16px;
-    }}
-    .clean-table thead th {{
-        background: #ffffff !important;
-        color: {BRAND} !important;
-        font-weight: 800 !important;
-        text-align: left;
-        padding: 13px 15px;
-        border-right: 1px solid {BRAND};
-        border-bottom: 1.5px solid {BRAND};
-        white-space: nowrap;
-    }}
-    .clean-table thead th:last-child {{
-        border-right: none;
-    }}
-    .clean-table tbody td {{
-        background: #ffffff !important;
-        color: {BRAND} !important;
-        padding: 12px 15px;
-        border-right: 1px solid {BRAND};
-        border-bottom: 1px solid {BRAND};
-        vertical-align: middle;
-    }}
-    .clean-table tbody tr:last-child td {{
-        border-bottom: none;
-    }}
-    .clean-table tbody td:last-child {{
-        border-right: none;
-    }}
-    </style>
-    """
+    styler = show_df.style.format(format_dict)
 
-    table_html = show_df.to_html(index=False, border=0, escape=False, classes="clean-table")
+    try:
+        styler = styler.hide(axis="index")
+    except Exception:
+        try:
+            styler = styler.hide_index()
+        except Exception:
+            pass
 
-    st.markdown(
-        css + f'<div class="clean-table-wrap">{table_html}</div>',
-        unsafe_allow_html=True,
+    styler = styler.set_properties(
+        **{
+            "background-color": "#ffffff",
+            "color": BRAND,
+            "border": f"1px solid {BRAND}",
+            "padding": "10px 12px",
+            "font-size": "16px",
+        }
     )
+
+    styler = styler.set_table_styles(
+        [
+            {
+                "selector": "thead th",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("font-weight", "800"),
+                    ("border", f"1px solid {BRAND}"),
+                    ("padding", "12px 12px"),
+                    ("font-size", "16px"),
+                    ("text-align", "left"),
+                ],
+            },
+            {
+                "selector": "tbody td",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("border", f"1px solid {BRAND}"),
+                ],
+            },
+            {
+                "selector": "table",
+                "props": [
+                    ("border-collapse", "collapse"),
+                    ("width", "100%"),
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                ],
+            },
+        ]
+    )
+
+    return styler
+
+
+def show_table(df, decimals=3):
+    st.table(make_styled_table(df, decimals=decimals))
 
 
 def style_base_fig(fig, height=430):
@@ -332,45 +342,8 @@ def style_base_fig(fig, height=430):
 
 
 def render():
-    st.markdown(
-        f"""
-        <style>
-        .bai1-card {{
-            padding: 34px 42px;
-            border-radius: 0 0 22px 22px;
-            border-left: 6px solid #3b82f6;
-            background: white;
-            box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
-            margin-bottom: 28px;
-        }}
-        .bai1-title {{
-            font-size: 2.1rem;
-            font-weight: 850;
-            color: {BRAND};
-            margin-bottom: 12px;
-        }}
-        .bai1-sub {{
-            color: #64748b;
-            font-size: 1.05rem;
-        }}
-        div[data-testid="stMetricValue"] {{
-            font-size: 1.42rem;
-            color: {BRAND};
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        """
-        <div class="bai1-card">
-            <div class="bai1-title">Bài 1. Hàm sản xuất Cobb-Douglas mở rộng</div>
-            <div class="bai1-sub">Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP 2030</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.title("Bài 1. Hàm sản xuất Cobb-Douglas mở rộng")
+    st.caption("Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP 2030")
 
     # =========================
     # Sidebar
@@ -400,9 +373,11 @@ def render():
     # =========================
     raw_df = load_data()
     model_df, A_mean, mape = compute_model(raw_df, alpha, beta, gamma, delta, theta)
+
     detail_df, avg_df, avg_growth = growth_decomposition(
         model_df, alpha, beta, gamma, delta, theta
     )
+
     forecast_df = forecast_2030(
         model_df,
         alpha,
@@ -432,9 +407,6 @@ def render():
     y_2030 = row_2030["GDP_forecast"]
     growth_2030 = (y_2030 / y_2025 - 1) * 100
 
-    # =========================
-    # Tabs
-    # =========================
     tabs = st.tabs(
         [
             "1.4.1 TFP",
@@ -468,7 +440,7 @@ def render():
             }
         )
 
-        render_clean_html_table(table_141, decimals=3)
+        show_table(table_141, decimals=3)
 
         fig = px.line(
             model_df,
@@ -477,7 +449,10 @@ def render():
             markers=True,
             title="Xu hướng TFP A_t",
         )
-        fig.update_traces(line=dict(color=BRAND, width=4), marker=dict(color=BRAND, size=9))
+        fig.update_traces(
+            line=dict(color=BRAND, width=4),
+            marker=dict(color=BRAND, size=9),
+        )
         fig.update_layout(xaxis_title="Năm", yaxis_title="A_t")
         style_base_fig(fig, height=430)
         st.plotly_chart(fig, use_container_width=True)
@@ -511,7 +486,7 @@ def render():
             }
         )
 
-        render_clean_html_table(table_142, decimals=3)
+        show_table(table_142, decimals=3)
 
         fig = go.Figure()
         fig.add_trace(
@@ -573,7 +548,7 @@ def render():
         c3.metric("Tỷ trọng", f"{largest_new['Tỷ trọng tăng trưởng (%)']:.1f}%")
 
         st.subheader("Đóng góp bình quân")
-        render_clean_html_table(avg_df, decimals=6)
+        show_table(avg_df, decimals=6)
 
         fig_avg = px.bar(
             avg_df,
@@ -596,7 +571,7 @@ def render():
         st.plotly_chart(fig_avg, use_container_width=True)
 
         st.subheader("Theo từng giai đoạn")
-        render_clean_html_table(detail_df, decimals=4)
+        show_table(detail_df, decimals=4)
 
         detail_long = detail_df.melt(
             id_vars="Giai đoạn",
@@ -651,7 +626,7 @@ def render():
             }
         )
 
-        render_clean_html_table(table_144, decimals=3)
+        show_table(table_144, decimals=3)
 
         actual = model_df[["Year", "GDP_trillion_VND"]].rename(
             columns={"Year": "Năm", "GDP_trillion_VND": "GDP"}
@@ -704,13 +679,9 @@ def render():
             bởi các yếu tố đầu vào quan sát được như vốn vật chất, lao động, số hóa, AI và vốn nhân lực số.
 
             Nếu TFP tăng, điều đó hàm ý nền kinh tế đang sử dụng nguồn lực hiệu quả hơn.
-            Nói cách khác, cùng một lượng vốn, lao động và công nghệ, nền kinh tế tạo ra nhiều sản lượng hơn.
+            Cùng một lượng vốn, lao động và công nghệ, nền kinh tế tạo ra nhiều sản lượng hơn.
             Đây là dấu hiệu tích cực vì tăng trưởng không chỉ đến từ mở rộng quy mô đầu vào,
-            mà còn đến từ cải thiện công nghệ, quản trị, tổ chức sản xuất, chuyển đổi số và năng lực đổi mới sáng tạo.
-
-            Ngược lại, nếu TFP giảm hoặc tăng rất chậm, điều này cho thấy tăng trưởng vẫn có thể phụ thuộc nhiều
-            vào tích lũy vốn và mở rộng lao động. Khi đó, chất lượng tăng trưởng chưa thật sự bền vững,
-            vì các nguồn lực truyền thống như vốn và lao động đều có giới hạn.
+            mà còn đến từ cải thiện công nghệ, quản trị, tổ chức sản xuất, chuyển đổi số và đổi mới sáng tạo.
             """
         )
 
@@ -724,27 +695,17 @@ def render():
 
         st.markdown(
             f"""
-            Trong mô hình Cobb-Douglas mở rộng, mức đóng góp của một yếu tố phụ thuộc vào hai thành phần chính:
+            Trong mô hình Cobb-Douglas mở rộng, mức đóng góp của một yếu tố phụ thuộc vào hai thành phần:
             **tốc độ tăng của yếu tố đó** và **hệ số co giãn của yếu tố đó trong hàm sản xuất**.
-            Vì vậy, một biến có tốc độ tăng nhanh nhưng hệ số nhỏ có thể đóng góp vừa phải;
-            ngược lại, một biến tăng không quá nhanh nhưng có hệ số lớn vẫn có thể tạo tác động đáng kể.
 
-            Về ý nghĩa kinh tế, **D** đại diện cho mức độ số hóa của nền kinh tế, thường được đo bằng tỷ trọng
-            kinh tế số trong GDP. Khi D tăng, các hoạt động kinh tế được số hóa nhiều hơn, chi phí giao dịch giảm,
-            khả năng kết nối thị trường tốt hơn và năng suất tổng thể có thể được cải thiện.
+            **D** đại diện cho mức độ số hóa của nền kinh tế. Khi D tăng, chi phí giao dịch giảm,
+            kết nối thị trường tốt hơn và hiệu quả sản xuất có thể được cải thiện.
 
             **AI** đại diện cho năng lực trí tuệ nhân tạo hoặc số lượng doanh nghiệp công nghệ số.
-            Sự gia tăng của AI cho thấy khu vực doanh nghiệp có khả năng ứng dụng công nghệ mới tốt hơn,
-            từ đó hỗ trợ tự động hóa, phân tích dữ liệu, tối ưu sản xuất và nâng cao chất lượng dịch vụ.
+            AI hỗ trợ tự động hóa, phân tích dữ liệu, tối ưu sản xuất và nâng cao chất lượng dịch vụ.
 
-            **H** đại diện cho vốn nhân lực số, tức tỷ lệ lao động qua đào tạo hoặc có kỹ năng phù hợp.
-            Đây là điều kiện nền tảng để công nghệ phát huy hiệu quả. Nếu thiếu nhân lực số,
-            đầu tư vào số hóa và AI có thể không chuyển hóa đầy đủ thành tăng trưởng thực tế.
-
-            Do đó, dù yếu tố **{largest_new['Yếu tố']}** là yếu tố nổi bật nhất trong kết quả hiện tại,
-            ba yếu tố D, AI và H không nên được xem là tách rời. Chúng có quan hệ bổ trợ lẫn nhau:
-            kinh tế số cần doanh nghiệp công nghệ, doanh nghiệp công nghệ cần nhân lực số,
-            và nhân lực số chỉ phát huy hiệu quả khi có môi trường số đủ phát triển.
+            **H** đại diện cho vốn nhân lực số. Đây là điều kiện nền tảng để công nghệ phát huy hiệu quả.
+            Nếu thiếu nhân lực số, đầu tư vào số hóa và AI khó chuyển hóa thành tăng trưởng thực tế.
             """
         )
 
@@ -763,53 +724,31 @@ def render():
 
         st.markdown(
             f"""
-            Dựa trên mô hình mô phỏng, mục tiêu kinh tế số đạt khoảng **30% GDP vào năm 2030**
-            là có cơ sở khả thi nếu các giả định chính được duy trì. Cụ thể, nền kinh tế cần đồng thời
-            mở rộng tỷ trọng kinh tế số, gia tăng số lượng và năng lực doanh nghiệp công nghệ số,
+            Mục tiêu kinh tế số đạt khoảng **30% GDP vào năm 2030** có cơ sở khả thi nếu Việt Nam đồng thời
+            mở rộng tỷ trọng kinh tế số, gia tăng năng lực doanh nghiệp công nghệ số,
             cải thiện chất lượng nhân lực và duy trì tăng trưởng TFP.
 
             Tuy nhiên, mục tiêu này không nên được hiểu đơn giản là chỉ cần tăng tỷ trọng D.
             Nếu D tăng nhưng AI và H không tăng tương ứng, tác động đến GDP có thể bị giới hạn.
-            Nói cách khác, kinh tế số chỉ tạo ra tăng trưởng bền vững khi đi kèm với năng lực hấp thụ công nghệ
-            của doanh nghiệp và kỹ năng số của người lao động.
+            Kinh tế số chỉ tạo ra tăng trưởng bền vững khi đi kèm với năng lực hấp thụ công nghệ của doanh nghiệp
+            và kỹ năng số của người lao động.
 
-            Để mục tiêu 30% kinh tế số/GDP có tính khả thi cao hơn, cần một số ràng buộc chính sách:
+            Các ràng buộc chính sách quan trọng gồm:
 
-            - **Thứ nhất, hạ tầng số phải được đầu tư đồng bộ.**
-            Điều này bao gồm băng rộng, trung tâm dữ liệu, điện toán đám mây, nền tảng số,
-            định danh số, thanh toán số và an toàn thông tin.
-
-            - **Thứ hai, doanh nghiệp phải chuyển đổi số thực chất.**
-            Không chỉ tăng số lượng doanh nghiệp công nghệ, mà cần tăng mức độ ứng dụng công nghệ
-            trong sản xuất, logistics, tài chính, thương mại, nông nghiệp, công nghiệp và dịch vụ công.
-
-            - **Thứ ba, vốn nhân lực số phải được nâng cao.**
-            Người lao động cần kỹ năng dữ liệu, kỹ năng sử dụng AI, kỹ năng vận hành nền tảng số
-            và năng lực thích ứng với công nghệ mới.
-
-            - **Thứ tư, TFP phải tiếp tục tăng.**
-            Nếu TFP không cải thiện, nền kinh tế dễ quay lại mô hình tăng trưởng dựa vào vốn và lao động,
-            trong khi hiệu quả dài hạn không cao.
-
-            - **Thứ năm, thể chế dữ liệu và đổi mới sáng tạo cần hoàn thiện.**
-            Cần có chính sách về chia sẻ dữ liệu, bảo mật, quyền riêng tư, cạnh tranh nền tảng,
-            hỗ trợ doanh nghiệp nhỏ và vừa chuyển đổi số, cũng như khuyến khích nghiên cứu phát triển.
+            - Đầu tư đồng bộ hạ tầng số: dữ liệu, nền tảng số, điện toán đám mây, băng rộng và an toàn thông tin.
+            - Thúc đẩy chuyển đổi số thực chất trong doanh nghiệp.
+            - Nâng cao vốn nhân lực số và kỹ năng sử dụng AI.
+            - Duy trì tăng trưởng TFP thông qua đổi mới sáng tạo và cải thiện quản trị.
+            - Hoàn thiện thể chế dữ liệu, bảo mật, cạnh tranh nền tảng và hỗ trợ doanh nghiệp nhỏ.
 
             **Kết luận:** mục tiêu kinh tế số đạt 30% GDP vào năm 2030 là có thể đạt được trong mô hình,
-            nhưng chỉ khả thi nếu Việt Nam không chỉ mở rộng quy mô kinh tế số, mà còn nâng đồng thời
-            **năng lực AI, vốn nhân lực số và năng suất nhân tố tổng hợp TFP**.
+            nhưng cần đồng thời nâng **D, AI, H và TFP**.
             """
         )
 
-        st.markdown("### Kết luận chung")
-
         st.info(
-            f"Mô hình Cobb-Douglas mở rộng cho thấy tăng trưởng GDP Việt Nam có thể được phân tích "
-            f"thông qua các yếu tố K, L, D, AI, H và TFP. "
-            f"TFP có xu hướng **{trend}**, MAPE của mô hình dự báo là **{mape:.2f}%**, "
-            f"và trong nhóm yếu tố mới, yếu tố nổi bật nhất là **{largest_new['Yếu tố']}**. "
-            f"Hàm ý chính sách là Việt Nam cần kết hợp chuyển đổi số, phát triển AI, nâng cao nhân lực số "
-            f"và cải thiện TFP để đạt tăng trưởng bền vững."
+            f"Mô hình cho thấy TFP có xu hướng **{trend}**, MAPE = **{mape:.2f}%**, "
+            f"và yếu tố mới nổi bật nhất là **{largest_new['Yếu tố']}**."
         )
 
 
