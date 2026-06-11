@@ -31,7 +31,7 @@ MULTI_COLORS = {
 
 # =========================================================
 # BÀI 8 — MÔ HÌNH ĐỘNG COBB-DOUGLAS 2026-2035
-# Cách B: scipy.optimize.minimize với SLSQP + callback
+# Cách B: scipy.optimize.minimize SLSQP
 # =========================================================
 
 
@@ -45,7 +45,7 @@ GAMMA = 0.10
 DELTA = 0.08
 THETA = 0.07
 
-# Trạng thái ban đầu năm 2026
+# Trạng thái ban đầu
 K0 = 27500.0
 D0 = 20.3
 AI0 = 86.0
@@ -62,21 +62,21 @@ DEP_D = 0.04
 DEP_AI = 0.05
 DEP_H = 0.02
 
-# Hiệu quả chuyển đổi đầu tư thành trạng thái số
+# Hiệu quả chuyển đầu tư thành trạng thái
 PHI_D = 0.004
 PHI_AI = 0.020
 PHI_H = 0.012
 
-# Giới hạn kỹ thuật
+# Trần trạng thái
 D_MAX = 55.0
 AI_MAX = 180.0
 H_MAX = 100.0
 
-# Ràng buộc tài khóa mềm
+# Ràng buộc mềm
 MIN_CONSUME_SHARE = 0.55
 MAX_INVEST_SHARE = 0.38
 
-# Giá trị GDP mục tiêu ban đầu để hiệu chỉnh A0
+# Hiệu chỉnh A0 để Y 2026 hợp lý
 Y0_TARGET = 14000.0
 
 A0 = Y0_TARGET / (
@@ -165,18 +165,11 @@ def penalty_from_sim(sim):
 
     violations = []
 
-    # Tiêu dùng không được quá thấp
     violations.extend(MIN_CONSUME_SHARE * sim["Y"] - sim["C"])
-
-    # Tổng đầu tư mỗi năm không vượt tỷ lệ tối đa của GDP
     violations.extend(X.sum(axis=1) - MAX_INVEST_SHARE * sim["Y"])
-
-    # Trần trạng thái số
     violations.extend(sim["D"][1:] - D_MAX)
     violations.extend(sim["AI"][1:] - AI_MAX)
     violations.extend(sim["H"][1:] - H_MAX)
-
-    # Tiêu dùng dương
     violations.extend(1 - sim["C"])
 
     v = np.maximum(0, np.array(violations, dtype=float))
@@ -192,8 +185,14 @@ def objective_from_x(x_vec, rho=0.97, shock_year=None, shock_factor=1.0):
     return -welfare + penalty
 
 
-@st.cache_data(show_spinner=False)
-def solve_slsqp_cached(rho=0.97, shock_year=None, shock_factor=1.0):
+# Dùng cache_resource thay vì cache_data để tránh lỗi pickle dict/numpy/scipy object
+@st.cache_resource(show_spinner=False)
+def solve_slsqp_cached(rho=0.97, shock_year=0, shock_factor=1.0):
+    if shock_year == 0:
+        shock_year_real = None
+    else:
+        shock_year_real = int(shock_year)
+
     scales = np.tile(np.array([5500.0, 2500.0, 2500.0, 2500.0]), T)
 
     x0_real = np.tile(np.array([2800.0, 650.0, 450.0, 600.0]), T)
@@ -202,59 +201,86 @@ def solve_slsqp_cached(rho=0.97, shock_year=None, shock_factor=1.0):
     callback_history = []
 
     def obj_u(u):
-        x = np.asarray(u) * scales
+        x = np.asarray(u, dtype=float) * scales
         return objective_from_x(
             x,
-            rho=rho,
-            shock_year=shock_year,
-            shock_factor=shock_factor,
+            rho=float(rho),
+            shock_year=shock_year_real,
+            shock_factor=float(shock_factor),
         )
 
     def callback(u):
-        x = np.asarray(u) * scales
-        sim = simulate_path(x, shock_year=shock_year, shock_factor=shock_factor)
+        x = np.asarray(u, dtype=float) * scales
+        sim = simulate_path(x, shock_year=shock_year_real, shock_factor=float(shock_factor))
         callback_history.append(
             {
                 "Iteration": len(callback_history) + 1,
-                "Welfare": welfare_from_sim(sim, rho=rho),
-                "Penalty": penalty_from_sim(sim),
+                "Welfare": float(welfare_from_sim(sim, rho=float(rho))),
+                "Penalty": float(penalty_from_sim(sim)),
             }
         )
 
-    res = minimize(
-        obj_u,
-        u0,
-        method="SLSQP",
-        bounds=[(0.0, 1.0)] * (T * 4),
-        callback=callback,
-        options={
-            "maxiter": 160,
-            "ftol": 1e-8,
-            "disp": False,
-        },
-    )
+    try:
+        res = minimize(
+            obj_u,
+            u0,
+            method="SLSQP",
+            bounds=[(0.0, 1.0)] * (T * 4),
+            callback=callback,
+            options={
+                "maxiter": 160,
+                "ftol": 1e-8,
+                "disp": False,
+            },
+        )
 
-    x_opt = np.asarray(res.x) * scales
-    sim = simulate_path(x_opt, shock_year=shock_year, shock_factor=shock_factor)
+        x_opt = np.asarray(res.x, dtype=float) * scales
 
-    return {
-        "success": bool(res.success),
-        "message": str(res.message),
-        "x": x_opt,
-        "sim": sim,
-        "welfare": welfare_from_sim(sim, rho=rho),
-        "penalty": penalty_from_sim(sim),
-        "callback": pd.DataFrame(callback_history),
-        "rho": rho,
-        "shock_year": shock_year,
-        "shock_factor": shock_factor,
-    }
+        sim = simulate_path(
+            x_opt,
+            shock_year=shock_year_real,
+            shock_factor=float(shock_factor),
+        )
+
+        return {
+            "success": bool(res.success),
+            "message": str(res.message),
+            "x": x_opt,
+            "sim": sim,
+            "welfare": float(welfare_from_sim(sim, rho=float(rho))),
+            "penalty": float(penalty_from_sim(sim)),
+            "callback": pd.DataFrame(callback_history),
+            "rho": float(rho),
+            "shock_year": shock_year_real,
+            "shock_factor": float(shock_factor),
+        }
+
+    except Exception as exc:
+        x_fallback = x0_real.copy()
+        sim = simulate_path(
+            x_fallback,
+            shock_year=shock_year_real,
+            shock_factor=float(shock_factor),
+        )
+
+        return {
+            "success": False,
+            "message": str(exc),
+            "x": x_fallback,
+            "sim": sim,
+            "welfare": float(welfare_from_sim(sim, rho=float(rho))),
+            "penalty": float(penalty_from_sim(sim)),
+            "callback": pd.DataFrame(callback_history),
+            "rho": float(rho),
+            "shock_year": shock_year_real,
+            "shock_factor": float(shock_factor),
+        }
 
 
 def path_table(sim):
     X = sim["X"]
 
-    df = pd.DataFrame(
+    return pd.DataFrame(
         {
             "Năm": YEARS,
             "K": sim["K"][:-1],
@@ -270,8 +296,6 @@ def path_table(sim):
             "Tổng đầu tư": X.sum(axis=1),
         }
     )
-
-    return df
 
 
 def terminal_state_table(sim):
@@ -344,8 +368,8 @@ def simulate_rule_strategy(strategy="even", rho=0.97):
     return {
         "x": X.reshape(-1),
         "sim": sim,
-        "welfare": welfare,
-        "penalty": penalty_from_sim(sim),
+        "welfare": float(welfare),
+        "penalty": float(penalty_from_sim(sim)),
     }
 
 
@@ -353,7 +377,7 @@ def compare_shock_table(base_sim, shock_sim):
     base = path_table(base_sim)
     shock = path_table(shock_sim)
 
-    df = pd.DataFrame(
+    return pd.DataFrame(
         {
             "Năm": YEARS,
             "Y kế hoạch": base["Y"],
@@ -365,8 +389,6 @@ def compare_shock_table(base_sim, shock_sim):
             "Chênh lệch đầu tư": shock["Tổng đầu tư"] - base["Tổng đầu tư"],
         }
     )
-
-    return df
 
 
 def investment_adjustment_after_shock(base_sim, shock_sim):
@@ -462,6 +484,7 @@ def make_styled_table(df, decimals=3):
     show_df = df.copy()
 
     format_dict = {}
+
     for col in show_df.columns:
         if pd.api.types.is_numeric_dtype(show_df[col]):
             if str(col).lower() in ["năm", "iteration"]:
@@ -552,6 +575,7 @@ def style_base_fig(fig, height=430):
         ),
         legend=dict(font=dict(color=BRAND)),
     )
+
     return fig
 
 
@@ -563,8 +587,9 @@ def render():
         st.error("Chưa cài scipy. Hãy thêm `scipy` vào requirements.txt.")
         return
 
-    opt_res = solve_slsqp_cached(rho=0.97, shock_year=None, shock_factor=1.0)
+    opt_res = solve_slsqp_cached(rho=0.97, shock_year=0, shock_factor=1.0)
     shock_res = solve_slsqp_cached(rho=0.97, shock_year=2028, shock_factor=0.92)
+    opt_short_res = solve_slsqp_cached(rho=0.90, shock_year=0, shock_factor=1.0)
 
     even_res = simulate_rule_strategy(strategy="even", rho=0.97)
     front_res = simulate_rule_strategy(strategy="front", rho=0.97)
@@ -591,6 +616,9 @@ def render():
         c1.metric("Trạng thái", "Optimal" if opt_res["success"] else "Kiểm tra")
         c2.metric("Welfare", f"{opt_res['welfare']:.3f}")
         c3.metric("Penalty", f"{opt_res['penalty']:.4f}")
+
+        if not opt_res["success"]:
+            st.warning(opt_res["message"])
 
         model_df = pd.DataFrame(
             {
@@ -674,7 +702,7 @@ def render():
             style_base_fig(fig_cb, height=390)
             st.plotly_chart(fig_cb, use_container_width=True)
         else:
-            st.info("SLSQP hội tụ rất nhanh nên callback có ít quan sát.")
+            st.info("SLSQP hội tụ nhanh nên callback có ít quan sát.")
 
         st.success(
             "Mô hình đã được giải bằng SLSQP. Biến quyết định là quỹ đạo đầu tư vào K, D, AI và H trong giai đoạn 2026-2035."
@@ -868,7 +896,6 @@ def render():
         st.header("8.3.4. So sánh chiến lược: trải đều và front-load")
 
         strategy_df = strategy_compare_table(opt_res, even_res, front_res)
-
         best_strategy = strategy_df.iloc[0]["Chiến lược"]
 
         c1, c2, c3 = st.columns(3)
@@ -949,7 +976,7 @@ def render():
         st.header("8.4. Thảo luận chính sách")
 
         total_inv = path_opt["Tổng đầu tư"].values
-        first3_share = total_inv[:3].sum() / total_inv.sum() * 100
+        first3_share = total_inv[:3].sum() / total_inv.sum() * 100 if total_inv.sum() > 0 else np.nan
 
         ai_h_ratio = path_opt["I_AI"].sum() / path_opt["I_H"].sum() if path_opt["I_H"].sum() > 0 else np.nan
 
@@ -965,10 +992,6 @@ def render():
             Điều này xuất hiện vì đầu tư sớm vào K, D, AI và H tạo ra năng lực sản xuất cho nhiều năm sau.
             Với hệ số chiết khấu ρ = 0,97, Chính phủ vẫn đánh giá cao lợi ích tương lai,
             nên mô hình có xu hướng chấp nhận giảm một phần tiêu dùng hiện tại để đổi lấy sản lượng cao hơn trong tương lai.
-
-            Ngược lại, nếu đầu tư dồn về cuối kỳ, đó là chiến lược back-loaded.
-            Chiến lược này giữ tiêu dùng ngắn hạn cao hơn nhưng làm chậm tích lũy năng lực số,
-            thường kém hấp dẫn khi lợi ích công nghệ có tính tích lũy.
             """
         )
 
@@ -980,32 +1003,25 @@ def render():
 
         st.markdown(
             """
-            Tỷ lệ AI/H thường không hoàn toàn ổn định qua thời gian vì hai loại đầu tư có vai trò khác nhau.
+            Tỷ lệ AI/H thường không hoàn toàn ổn định vì hai loại đầu tư có vai trò khác nhau.
             AI giúp tăng năng lực công nghệ trực tiếp, nhưng nhân lực số H quyết định khả năng hấp thụ và vận hành AI.
-
-            Nếu mô hình tăng H trước hoặc tăng H đồng thời với AI, hàm ý chính sách là đào tạo nhân lực không thể đi sau quá xa.
-            Đầu tư AI mà thiếu kỹ sư, chuyên gia dữ liệu, đội ngũ vận hành và quản trị công nghệ sẽ làm hiệu quả biên của AI thấp đi.
-
-            Vì vậy, chính sách hợp lý là **đào tạo nhân lực số đi trước một bước hoặc ít nhất song hành với đầu tư AI**.
+            Hàm ý chính sách là đào tạo nhân lực số nên đi trước một bước hoặc ít nhất song hành với đầu tư AI.
             """
         )
 
         st.markdown("### c) Nếu ρ = 0,90 thì kết quả thay đổi thế nào?")
 
+        rho_df = rho_policy_table(opt_res, opt_short_res)
+        show_table(rho_df, decimals=3)
+
         st.markdown(
             """
-            Hệ số chiết khấu ρ = 0,97 thể hiện Chính phủ quan tâm khá nhiều đến dài hạn.
-            Khi giảm xuống ρ = 0,90, mô hình sẽ coi lợi ích tương lai kém quan trọng hơn.
-            Khi đó, nghiệm tối ưu thường có xu hướng:
+            Hệ số chiết khấu ρ = 0,97 thể hiện Chính phủ quan tâm nhiều đến dài hạn.
+            Khi giảm xuống ρ = 0,90, mô hình coi lợi ích tương lai kém quan trọng hơn.
+            Khi đó nghiệm tối ưu thường có xu hướng giữ tiêu dùng hiện tại cao hơn và giảm ưu tiên cho các khoản đầu tư dài hạn.
 
-            - Giữ tiêu dùng hiện tại cao hơn.
-            - Giảm đầu tư dài hạn vào các tài sản có độ trễ như AI, R&D, dữ liệu và nhân lực.
-            - Ưu tiên các khoản có tác động nhanh hơn.
-            - Làm terminal Y thấp hơn so với trường hợp ρ cao.
-
-            Đây là một cách giải thích vì sao các chính phủ có chu kỳ chính trị ngắn thường dễ **dưới đầu tư vào R&D và công nghệ nền tảng**.
-            Lợi ích của R&D xuất hiện chậm, trong khi chi phí ngân sách xuất hiện ngay.
-            Nếu hệ thống đánh giá chính sách thiên về ngắn hạn, các dự án dài hạn dễ bị giảm ưu tiên.
+            Đây là một cách giải thích vì sao các chính phủ có chu kỳ chính trị ngắn thường dễ **dưới đầu tư vào R&D và công nghệ nền tảng**:
+            lợi ích xuất hiện chậm, còn chi phí ngân sách xuất hiện ngay.
             """
         )
 
