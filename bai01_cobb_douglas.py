@@ -1,3 +1,7 @@
+# bai01_cobb_douglas.py
+# Bài 1 - Hàm sản xuất Cobb-Douglas mở rộng với AI và số hóa
+# Phiên bản sửa lỗi cú pháp f-string
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -13,9 +17,9 @@ def ai_analysis(df, alpha, beta, gamma, delta, theta, mape, growth_decomposition
     # Xu hướng TFP
     tfp_trend = df["A_TFP"].iloc[-1] - df["A_TFP"].iloc[0]
     if tfp_trend > 0:
-        insights.append("📈 **TFP có xu hướng tăng** (%.4f → %.4f), cho thấy chất lượng tăng trưởng được cải thiện nhờ đổi mới công nghệ và hiệu quả đầu tư." % (df["A_TFP"].iloc[0], df["A_TFP"].iloc[-1]))
+        insights.append(f"📈 **TFP có xu hướng tăng** ({df['A_TFP'].iloc[0]:.4f} → {df['A_TFP'].iloc[-1]:.4f}), cho thấy chất lượng tăng trưởng được cải thiện nhờ đổi mới công nghệ và hiệu quả đầu tư.")
     else:
-        insights.append("📉 **TFP có xu hướng giảm**, tăng trưởng GDP phụ thuộc nhiều vào mở rộng đầu vào (vốn, lao động) – tiềm ẩn rủi ro thiếu bền vững.")
+        insights.append(f"📉 **TFP có xu hướng giảm**, tăng trưởng GDP phụ thuộc nhiều vào mở rộng đầu vào (vốn, lao động) – tiềm ẩn rủi ro thiếu bền vững.")
     
     # MAPE
     if mape < 5:
@@ -37,7 +41,8 @@ def ai_analysis(df, alpha, beta, gamma, delta, theta, mape, growth_decomposition
     
     # Dự báo 2030
     growth_2025_2030 = (gdp_2030 / df[df["Năm"]==2025]["Y_GDP"].values[0] - 1) * 100
-    insights.append(f"📅 **Dự báo 2030**: GDP đạt {gdp_2030:,.0f} nghìn tỷ, tăng {growth_2025_2030:.1f}% so với 2025. {'Khả thi nếu D đạt 30% và AI 100 nghìn DN.' if growth_2025_2030 > 50 else 'Cần kịch bản đầu tư cao hơn để đạt mục tiêu tăng trưởng kép.')}")
+    # Dòng bị lỗi đã được sửa: không có dấu ngoặc đơn thừa
+    insights.append(f"📅 **Dự báo 2030**: GDP đạt {gdp_2030:,.0f} nghìn tỷ, tăng {growth_2025_2030:.1f}% so với 2025. {'Khả thi nếu D đạt 30% và AI 100 nghìn DN.' if growth_2025_2030 > 50 else 'Cần kịch bản đầu tư cao hơn để đạt mục tiêu tăng trưởng kép.'}")
     
     # So sánh với mục tiêu chính sách
     if df["D_kinh_te_so"].iloc[-1] < 20:
@@ -76,14 +81,13 @@ def render():
         st.error("❌ Tổng α+β+γ+δ ≥1, θ ≤ 0. Giảm các hệ số khác lại.")
         return
     
-    # Nút reset
+    # Nút reset (dùng session state để lưu giá trị mặc định)
     if st.sidebar.button("🔄 Reset về hệ số mặc định"):
         st.session_state["alpha"] = 0.33
         st.session_state["beta"] = 0.42
         st.session_state["gamma"] = 0.10
         st.session_state["delta"] = 0.08
-        # Cần rerun để cập nhật slider, nhưng do session_state chưa có, ta dùng thủ thuật:
-        st.experimental_rerun()
+        st.rerun()
     
     # ---------- TÍNH TOÁN TFP, DỰ BÁO ----------
     df = df_raw.copy()
@@ -231,5 +235,8 @@ def render():
         """)
 
 # =========================== MAIN ===========================
+def run():
+    render()
+
 if __name__ == "__main__":
     render()
