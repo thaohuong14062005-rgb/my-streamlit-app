@@ -21,72 +21,134 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+        /* =========================
+           NỀN TỔNG THỂ
+        ========================= */
+
         .stApp {
-            background: linear-gradient(135deg, #0f172a 0%, #111827 45%, #020617 100%);
-            color: #f8fafc;
-        }
-
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #111827 0%, #1e293b 100%);
-            border-right: 1px solid rgba(255,255,255,0.08);
-        }
-
-        section[data-testid="stSidebar"] h1,
-        section[data-testid="stSidebar"] h2,
-        section[data-testid="stSidebar"] h3,
-        section[data-testid="stSidebar"] p,
-        section[data-testid="stSidebar"] span,
-        section[data-testid="stSidebar"] label {
-            color: #f8fafc !important;
-        }
-
-        section[data-testid="stSidebar"] .stButton > button {
-            width: 100%;
-            justify-content: flex-start;
-            text-align: left;
-            border-radius: 12px;
-            padding: 0.65rem 0.8rem;
-            font-weight: 650;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-        }
-
-        section[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
-            background: rgba(15, 23, 42, 0.35);
-            color: #f8fafc;
-        }
-
-        section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-            background: linear-gradient(90deg, #ef4444, #f97316);
-            color: white;
-            border: 1px solid rgba(248, 250, 252, 0.25);
-        }
-
-        h1, h2, h3 {
-            color: #f8fafc !important;
-            font-weight: 800 !important;
+            background: #F8F1E3 !important;
+            color: #053151 !important;
         }
 
         .block-container {
             padding-top: 2rem;
             padding-bottom: 3rem;
-            max-width: 100%;
+            max-width: 100% !important;
         }
 
+        /* =========================
+           SIDEBAR TRÁI
+        ========================= */
+
+        section[data-testid="stSidebar"] {
+            background: #053151 !important;
+            border-right: 1px solid rgba(255,255,255,0.16);
+        }
+
+        section[data-testid="stSidebar"] * {
+            color: #F8F1E3 !important;
+        }
+
+        section[data-testid="stSidebar"] hr {
+            border-color: rgba(248, 241, 227, 0.25) !important;
+        }
+
+        section[data-testid="stSidebar"] .stButton > button {
+            width: 100%;
+            min-height: 48px;
+            justify-content: flex-start;
+            text-align: left;
+            border-radius: 14px;
+            padding: 0.65rem 0.9rem;
+            font-weight: 700;
+            font-size: 0.98rem;
+            border: 1px solid rgba(248, 241, 227, 0.22);
+            box-shadow: none;
+            transition: all 0.18s ease;
+        }
+
+        section[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+            background: rgba(248, 241, 227, 0.06) !important;
+            color: #F8F1E3 !important;
+        }
+
+        section[data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {
+            background: rgba(228, 136, 55, 0.35) !important;
+            border-color: #E48837 !important;
+            transform: translateX(2px);
+        }
+
+        section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
+            background: #E48837 !important;
+            color: #ffffff !important;
+            border: 1px solid #E48837 !important;
+            box-shadow: 0 8px 18px rgba(228, 136, 55, 0.30);
+        }
+
+        .sidebar-subtitle {
+            color: rgba(248, 241, 227, 0.82) !important;
+            font-size: 0.92rem;
+            line-height: 1.45;
+            margin-bottom: 1rem;
+        }
+
+        .difficulty-label {
+            margin-top: 1rem;
+            margin-bottom: 0.45rem;
+            font-size: 0.92rem;
+            font-weight: 800;
+            color: #F8F1E3 !important;
+            letter-spacing: 0.02em;
+        }
+
+        /* =========================
+           TEXT PHẦN GIẢI BÀI
+        ========================= */
+
+        h1, h2, h3, h4, h5, h6 {
+            color: #053151 !important;
+            font-weight: 850 !important;
+        }
+
+        p, li, span, label, div {
+            color: inherit;
+        }
+
+        .stMarkdown, .stText, .stCaption {
+            color: #053151 !important;
+        }
+
+        [data-testid="stMarkdownContainer"] {
+            color: #053151 !important;
+        }
+
+        /* =========================
+           CARD / KHỐI NỘI DUNG
+        ========================= */
+
         .card {
-            background: rgba(15, 23, 42, 0.86);
-            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(255, 255, 255, 0.58);
+            border: 1px solid rgba(5, 49, 81, 0.16);
             border-radius: 22px;
             padding: 24px;
             margin-bottom: 18px;
-            box-shadow: 0 10px 35px rgba(0,0,0,0.28);
+            box-shadow: 0 10px 28px rgba(5, 49, 81, 0.10);
+            color: #053151 !important;
+        }
+
+        .card h1,
+        .card h2,
+        .card h3,
+        .card p {
+            color: #053151 !important;
         }
 
         .pill {
             display: inline-block;
             padding: 6px 13px;
             border-radius: 999px;
-            background: linear-gradient(90deg, #10b981, #06b6d4);
-            color: white;
+            background: #E48837;
+            color: white !important;
             font-weight: 700;
             font-size: 13px;
             margin-right: 8px;
@@ -94,52 +156,152 @@ st.markdown(
         }
 
         div[data-testid="stMetric"] {
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid rgba(148, 163, 184, 0.25);
+            background: rgba(255, 255, 255, 0.66);
+            border: 1px solid rgba(5, 49, 81, 0.18);
             border-radius: 18px;
             padding: 18px;
+            box-shadow: 0 8px 20px rgba(5, 49, 81, 0.08);
         }
 
-        .right-setting-title {
-            background: rgba(15, 23, 42, 0.92);
-            border: 1px solid rgba(148, 163, 184, 0.25);
+        div[data-testid="stMetric"] label,
+        div[data-testid="stMetric"] div {
+            color: #053151 !important;
+        }
+
+        /* =========================
+           TAB
+        ========================= */
+
+        button[data-baseweb="tab"] {
+            color: #053151 !important;
+            font-weight: 700 !important;
+        }
+
+        button[data-baseweb="tab"][aria-selected="true"] {
+            color: #E48837 !important;
+            border-bottom-color: #E48837 !important;
+        }
+
+        div[data-baseweb="tab-highlight"] {
+            background-color: #E48837 !important;
+        }
+
+        /* =========================
+           EXPANDER THAM SỐ TRONG BÀI
+        ========================= */
+
+        div[data-testid="stExpander"] {
+            background: rgba(255, 255, 255, 0.58) !important;
+            border: 1px solid rgba(5, 49, 81, 0.18) !important;
+            border-radius: 18px !important;
+            box-shadow: 0 8px 20px rgba(5, 49, 81, 0.08);
+            margin-top: 12px;
+            margin-bottom: 22px;
+        }
+
+        div[data-testid="stExpander"] summary {
+            color: #053151 !important;
+            font-weight: 800 !important;
+        }
+
+        div[data-testid="stExpander"] label,
+        div[data-testid="stExpander"] p,
+        div[data-testid="stExpander"] span,
+        div[data-testid="stExpander"] div {
+            color: #053151 !important;
+        }
+
+        /* =========================
+           INPUT / SLIDER / SELECT
+        ========================= */
+
+        .stSlider label,
+        .stNumberInput label,
+        .stSelectbox label,
+        .stCheckbox label,
+        .stRadio label,
+        .stTextInput label {
+            color: #053151 !important;
+            font-weight: 700 !important;
+        }
+
+        .stSlider [data-testid="stTickBar"] {
+            color: #053151 !important;
+        }
+
+        div[data-baseweb="slider"] > div {
+            color: #E48837 !important;
+        }
+
+        .stButton > button {
+            background: #E48837 !important;
+            color: #ffffff !important;
+            border: 1px solid #E48837 !important;
+            border-radius: 12px !important;
+            font-weight: 750 !important;
+        }
+
+        .stButton > button:hover {
+            background: #cf772d !important;
+            border-color: #cf772d !important;
+        }
+
+        /* =========================
+           DATAFRAME / TABLE
+        ========================= */
+
+        div[data-testid="stDataFrame"] {
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        table {
+            color: #053151 !important;
+        }
+
+        /* =========================
+           PLOTLY / CHART CONTAINER
+        ========================= */
+
+        div[data-testid="stPlotlyChart"],
+        div[data-testid="stVegaLiteChart"],
+        div[data-testid="stPyplot"] {
+            background: rgba(255, 255, 255, 0.42);
             border-radius: 18px;
-            padding: 16px 16px 12px 16px;
-            margin-bottom: 14px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.22);
+            padding: 8px;
+            border: 1px solid rgba(5, 49, 81, 0.10);
         }
 
-        .right-setting-title h3 {
-            margin-top: 0;
-            margin-bottom: 6px;
-            font-size: 1.1rem;
+        /* =========================
+           ALERT BOX
+        ========================= */
+
+        div[data-testid="stAlert"] {
+            border-radius: 15px;
         }
 
-        .right-setting-title p {
-            margin-bottom: 0;
-            color: #cbd5e1;
-            font-size: 0.88rem;
-            line-height: 1.45;
-        }
+        /* =========================
+           MOBILE
+        ========================= */
 
-        div[data-testid="stVerticalBlock"] label {
-            font-weight: 650 !important;
-        }
+        @media (max-width: 900px) {
+            .block-container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
 
-        .difficulty-label {
-            margin-top: 1rem;
-            margin-bottom: 0.4rem;
-            font-size: 0.92rem;
-            font-weight: 800;
-            color: #cbd5e1;
-            letter-spacing: 0.02em;
-        }
+            h1 {
+                font-size: 2rem !important;
+                line-height: 1.22 !important;
+            }
 
-        .sidebar-subtitle {
-            color: #cbd5e1;
-            font-size: 0.92rem;
-            line-height: 1.45;
-            margin-bottom: 1rem;
+            h2 {
+                font-size: 1.55rem !important;
+            }
+
+            h3 {
+                font-size: 1.25rem !important;
+            }
         }
     </style>
     """,
@@ -268,7 +430,7 @@ def sidebar_button(label: str, index: int):
 if "current_menu" not in st.session_state:
     st.session_state["current_menu"] = HOME_MENU
 
-st.sidebar.title("🇻🇳 AIDEOM-VN")
+st.sidebar.title("VN AIDEOM-VN")
 st.sidebar.markdown(
     """
     <div class="sidebar-subtitle">
@@ -344,71 +506,78 @@ def module_dang_bo_sung(module_name: str):
 def render_module(module_paths, module_label: str):
     """
     module_paths: danh sách đường dẫn module có thể thử import.
-    Ví dụ:
-    ["modules.bai1_cobb_douglas", "bai01_cobb_douglas"]
 
-    Điểm mới:
-    - Sidebar trái chỉ dùng để chọn bài.
-    - Các lệnh st.sidebar trong từng module sẽ được chuyển sang cột thiết lập bên phải.
+    Bản giao diện mới:
+    - Sidebar trái chỉ còn menu.
+    - Không còn cột tham số bên phải.
+    - Nếu module cũ vẫn dùng st.sidebar.slider / st.sidebar.selectbox...
+      thì app tự chuyển các widget đó vào một khối expander trong nội dung bài.
     """
-
-    main_col, setting_col = st.columns([4.6, 1.35], gap="large")
-
-    with setting_col:
-        st.markdown(
-            """
-            <div class="right-setting-title">
-                <h3>⚙️ Thiết lập bài</h3>
-                <p>
-                    Các thông số, slider, lựa chọn và nút chạy của bài đang mở
-                    sẽ hiển thị tại khu vực này.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
 
     last_error = None
     original_sidebar = st.sidebar
 
+    st.markdown(
+        """
+        <style>
+            .legacy-param-note {
+                background: rgba(228, 136, 55, 0.12);
+                border: 1px solid rgba(228, 136, 55, 0.35);
+                border-radius: 18px;
+                padding: 14px 18px;
+                margin-bottom: 18px;
+                color: #053151 !important;
+                font-weight: 650;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    legacy_param_box = st.expander(
+        "⚙️ Tùy chỉnh tham số mô phỏng",
+        expanded=False
+    )
+
     try:
-        st.sidebar = setting_col
+        # Chuyển toàn bộ st.sidebar trong các module cũ vào expander trên nội dung chính.
+        # Nhờ vậy sidebar trái không bị lẫn slider/tham số nữa.
+        st.sidebar = legacy_param_box
 
-        with main_col:
-            for module_path in module_paths:
-                try:
-                    module = importlib.import_module(module_path)
+        for module_path in module_paths:
+            try:
+                module = importlib.import_module(module_path)
 
-                    if hasattr(module, "render"):
-                        module.render()
-                        return
-
-                    if hasattr(module, "run"):
-                        module.run()
-                        return
-
-                    st.warning(
-                        f"Đã tìm thấy module `{module_path}` nhưng chưa có hàm `render()` hoặc `run()`."
-                    )
+                if hasattr(module, "render"):
+                    module.render()
                     return
 
-                except ModuleNotFoundError as e:
-                    last_error = e
-                    continue
-
-                except Exception as e:
-                    st.error(f"Module `{module_path}` có lỗi khi chạy.")
-                    st.exception(e)
+                if hasattr(module, "run"):
+                    module.run()
                     return
 
-            module_dang_bo_sung(module_label)
+                st.warning(
+                    f"Đã tìm thấy module `{module_path}` nhưng chưa có hàm `render()` hoặc `run()`."
+                )
+                return
 
-            with st.expander("Chi tiết kỹ thuật"):
-                st.write("App đã thử import các module sau nhưng chưa tìm thấy:")
-                for p in module_paths:
-                    st.code(p)
-                if last_error:
-                    st.caption(f"Lỗi cuối cùng: {last_error}")
+            except ModuleNotFoundError as e:
+                last_error = e
+                continue
+
+            except Exception as e:
+                st.error(f"Module `{module_path}` có lỗi khi chạy.")
+                st.exception(e)
+                return
+
+        module_dang_bo_sung(module_label)
+
+        with st.expander("Chi tiết kỹ thuật"):
+            st.write("App đã thử import các module sau nhưng chưa tìm thấy:")
+            for p in module_paths:
+                st.code(p)
+            if last_error:
+                st.caption(f"Lỗi cuối cùng: {last_error}")
 
     finally:
         st.sidebar = original_sidebar
