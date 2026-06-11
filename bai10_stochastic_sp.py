@@ -1,916 +1,1075 @@
 # bai10_stochastic_sp.py
-# Bài 10 - Quy hoạch ngẫu nhiên hai giai đoạn dưới bất định
-# Module Streamlit, dùng hàm render()
 
 import numpy as np
 import pandas as pd
 import streamlit as st
-from scipy.optimize import linprog
+import plotly.express as px
+
+try:
+    import pyomo.environ as pyo
+    PYOMO_AVAILABLE = True
+except Exception:
+    PYOMO_AVAILABLE = False
+
+try:
+    from scipy.optimize import linprog
+    SCIPY_AVAILABLE = True
+except Exception:
+    SCIPY_AVAILABLE = False
 
 
-ITEMS = ["I", "D", "AI", "H"]
+BRAND = "#053151"
 
-ITEM_LABELS = {
+MULTI_COLORS = {
+    "I": "#053151",
+    "D": "#E76F51",
+    "AI": "#2A9D8F",
+    "H": "#F4A261",
+    "SP": "#053151",
+    "EV": "#E76F51",
+    "Robust": "#2A9D8F",
+    "Wait-and-see": "#F4A261",
+}
+
+
+# =========================================================
+# BÀI 10 — TWO-STAGE STOCHASTIC PROGRAMMING
+# =========================================================
+
+
+J = ["I", "D", "AI", "H"]
+J_LABELS = {
     "I": "Hạ tầng số",
-    "D": "Chuyển đổi số",
-    "AI": "Trí tuệ nhân tạo",
+    "D": "Dữ liệu/nền tảng",
+    "AI": "AI",
     "H": "Nhân lực số",
 }
 
-SCENARIOS = ["s1", "s2", "s3", "s4"]
-
-SCENARIO_LABELS = {
-    "s1": "Lạc quan",
+S = ["s1", "s2", "s3", "s4"]
+S_LABELS = {
+    "s1": "Tăng trưởng số cao",
     "s2": "Cơ sở",
-    "s3": "Bi quan",
-    "s4": "Khủng hoảng",
+    "s3": "Suy giảm nhẹ",
+    "s4": "Cú sốc xấu",
 }
 
+P = {
+    "s1": 0.30,
+    "s2": 0.45,
+    "s3": 0.20,
+    "s4": 0.05,
+}
 
-def get_scenario_data():
-    return pd.DataFrame({
-        "Kịch bản": SCENARIOS,
-        "Tên kịch bản": ["Lạc quan", "Cơ sở", "Bi quan", "Khủng hoảng"],
-        "Tăng trưởng TG (%)": [3.5, 2.8, 1.5, 0.2],
-        "FDI VN (tỷ USD/năm)": [32.0, 27.0, 20.0, 12.0],
-        "Xuất khẩu VN tăng (%)": [12.0, 8.0, 3.0, -5.0],
-        "Xác suất": [0.30, 0.45, 0.20, 0.05],
-    })
+BETA = {
+    "I": 1.00,
+    "D": 1.10,
+    "AI": 1.25,
+    "H": 0.95,
+}
+
+BETA_S = {
+    ("s1", "I"): 1.25,
+    ("s1", "D"): 1.35,
+    ("s1", "AI"): 1.55,
+    ("s1", "H"): 1.05,
+    ("s2", "I"): 1.00,
+    ("s2", "D"): 1.10,
+    ("s2", "AI"): 1.25,
+    ("s2", "H"): 0.95,
+    ("s3", "I"): 0.75,
+    ("s3", "D"): 0.85,
+    ("s3", "AI"): 0.90,
+    ("s3", "H"): 1.00,
+    ("s4", "I"): 0.40,
+    ("s4", "D"): 0.50,
+    ("s4", "AI"): 0.55,
+    ("s4", "H"): 1.10,
+}
+
+BUDGET_1 = 65000.0
+BUDGET_2 = 15000.0
 
 
-def get_beta_data():
-    beta_base = pd.DataFrame({
-        "Hạng mục": ITEMS,
-        "Tên hạng mục": [ITEM_LABELS[i] for i in ITEMS],
-        "Beta cơ bản": [1.00, 1.10, 1.25, 0.95],
-    })
+def scenario_table():
+    rows = []
 
-    beta_s = pd.DataFrame({
-        "Kịch bản": SCENARIOS,
-        "I": [1.25, 1.00, 0.75, 0.40],
-        "D": [1.35, 1.10, 0.85, 0.50],
-        "AI": [1.55, 1.25, 0.90, 0.55],
-        "H": [1.05, 0.95, 1.00, 1.10],
-    })
+    for s in S:
+        row = {
+            "Kịch bản": s,
+            "Tên kịch bản": S_LABELS[s],
+            "Xác suất": P[s],
+        }
 
-    return beta_base, beta_s
+        for j in J:
+            row[J_LABELS[j]] = BETA_S[(s, j)]
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
 
 
-def solve_stochastic_model(
-    first_budget=65000.0,
-    reserve_budget=15000.0,
-    ai_capacity_ratio=0.5,
-    min_h_share=0.0,
-    max_item_share=1.0,
-    probabilities=None,
-    beta_base=None,
-    beta_second=None,
-    fixed_x=None,
-):
-    """
-    Giải bài toán two-stage stochastic programming bằng scipy.optimize.linprog.
-
-    Biến:
-        x_j      : quyết định first-stage, j thuộc {I, D, AI, H}
-        y_sj     : quyết định recourse/second-stage theo kịch bản s
-
-    Hàm mục tiêu:
-        max sum_j beta_j*x_j + sum_s p_s * sum_j beta_sj*y_sj
-
-    Ràng buộc:
-        sum_j x_j <= first_budget
-        sum_j y_sj <= reserve_budget, với mọi s
-        y_s,AI <= ai_capacity_ratio * x_H, với mọi s
-        x_j, y_sj >= 0
-    """
-    scenario_df = get_scenario_data()
-    beta_base_df, beta_s_df = get_beta_data()
-
-    if probabilities is None:
-        probabilities = scenario_df["Xác suất"].to_numpy(dtype=float)
-
-    if beta_base is None:
-        beta_base = beta_base_df["Beta cơ bản"].to_numpy(dtype=float)
-
-    if beta_second is None:
-        beta_second = beta_s_df[ITEMS].to_numpy(dtype=float)
-
-    probabilities = np.array(probabilities, dtype=float)
-    beta_base = np.array(beta_base, dtype=float)
-    beta_second = np.array(beta_second, dtype=float)
-
-    n_items = len(ITEMS)
-    n_scenarios = len(probabilities)
-
-    # Vector biến: [x_I, x_D, x_AI, x_H, y_s1_I, y_s1_D, ..., y_s4_H]
-    n_vars = n_items + n_scenarios * n_items
-
-    # scipy linprog là minimize, nên đổi dấu hàm mục tiêu
-    c = np.zeros(n_vars)
-    c[:n_items] = -beta_base
-
-    for s in range(n_scenarios):
-        start = n_items + s * n_items
-        end = start + n_items
-        c[start:end] = -probabilities[s] * beta_second[s]
-
-    A_ub = []
-    b_ub = []
-
-    # Ràng buộc ngân sách first-stage
-    row = np.zeros(n_vars)
-    row[:n_items] = 1.0
-    A_ub.append(row)
-    b_ub.append(first_budget)
-
-    # Ràng buộc sàn tỷ trọng nhân lực số H trong first-stage
-    if min_h_share > 0:
-        row = np.zeros(n_vars)
-        row[ITEMS.index("H")] = -1.0
-        A_ub.append(row)
-        b_ub.append(-min_h_share * first_budget)
-
-    # Ràng buộc trần tỷ trọng mỗi hạng mục, tránh nghiệm dồn 100%
-    if max_item_share < 1.0:
-        for j in range(n_items):
-            row = np.zeros(n_vars)
-            row[j] = 1.0
-            A_ub.append(row)
-            b_ub.append(max_item_share * first_budget)
-
-    # Ràng buộc second-stage cho từng kịch bản
-    for s in range(n_scenarios):
-        start = n_items + s * n_items
-        end = start + n_items
-
-        # Tổng ngân sách recourse theo kịch bản
-        row = np.zeros(n_vars)
-        row[start:end] = 1.0
-        A_ub.append(row)
-        b_ub.append(reserve_budget)
-
-        # y_AI^s <= ai_capacity_ratio * x_H
-        row = np.zeros(n_vars)
-        row[start + ITEMS.index("AI")] = 1.0
-        row[ITEMS.index("H")] = -ai_capacity_ratio
-        A_ub.append(row)
-        b_ub.append(0.0)
-
-    bounds = [(0.0, None)] * n_vars
-
-    # Nếu muốn đánh giá một nghiệm x cố định, dùng fixed_x
-    if fixed_x is not None:
-        fixed_x = np.array(fixed_x, dtype=float)
-        for j in range(n_items):
-            bounds[j] = (fixed_x[j], fixed_x[j])
-
-    res = linprog(
-        c=c,
-        A_ub=np.array(A_ub),
-        b_ub=np.array(b_ub),
-        bounds=bounds,
-        method="highs",
+def beta_table():
+    return pd.DataFrame(
+        {
+            "Hạng mục": [J_LABELS[j] for j in J],
+            "Mã": J,
+            "Beta first-stage": [BETA[j] for j in J],
+        }
     )
 
-    info = {
-        "probabilities": probabilities,
-        "beta_base": beta_base,
-        "beta_second": beta_second,
-        "first_budget": first_budget,
-        "reserve_budget": reserve_budget,
-        "ai_capacity_ratio": ai_capacity_ratio,
-    }
 
-    return res, info
+def expected_coefficients():
+    coeff = {}
+
+    for j in J:
+        coeff[j] = sum(P[s] * BETA_S[(s, j)] for s in S)
+
+    return coeff
 
 
-def unpack_solution(res, info, scenario_names=None):
-    if not res.success:
-        return pd.DataFrame(), pd.DataFrame(), {}
-
-    probabilities = info["probabilities"]
-    beta_base = info["beta_base"]
-    beta_second = info["beta_second"]
-
-    n_items = len(ITEMS)
-    n_scenarios = len(probabilities)
-
-    if scenario_names is None:
-        scenario_names = SCENARIOS[:n_scenarios]
-
-    x = res.x[:n_items]
-    y = res.x[n_items:].reshape(n_scenarios, n_items)
-
-    first_df = pd.DataFrame({
-        "Hạng mục": ITEMS,
-        "Tên hạng mục": [ITEM_LABELS[i] for i in ITEMS],
-        "x first-stage": x,
-        "Beta cơ bản": beta_base,
-        "Lợi ích first-stage": x * beta_base,
-        "Tỷ trọng (%)": np.where(x.sum() > 0, x / x.sum() * 100, 0),
-    })
-
-    second_rows = []
-    for s in range(n_scenarios):
-        for j, item in enumerate(ITEMS):
-            second_rows.append({
-                "Kịch bản": scenario_names[s],
-                "Tên kịch bản": SCENARIO_LABELS.get(scenario_names[s], scenario_names[s]),
-                "Hạng mục": item,
-                "Tên hạng mục": ITEM_LABELS[item],
-                "y recourse": y[s, j],
-                "Beta kịch bản": beta_second[s, j],
-                "Xác suất": probabilities[s],
-                "Lợi ích nếu kịch bản xảy ra": beta_second[s, j] * y[s, j],
-                "Lợi ích kỳ vọng": probabilities[s] * beta_second[s, j] * y[s, j],
-            })
-
-    second_df = pd.DataFrame(second_rows)
-
-    summary = {
-        "objective": -res.fun,
-        "first_budget_used": x.sum(),
-        "first_benefit": np.sum(beta_base * x),
-        "expected_recourse_benefit": sum(
-            probabilities[s] * np.sum(beta_second[s] * y[s])
-            for s in range(n_scenarios)
-        ),
-        "x": x,
-        "y": y,
-    }
-
-    return first_df, second_df, summary
-
-
-def solve_expected_value_model(
-    first_budget,
-    reserve_budget,
-    ai_capacity_ratio,
-    min_h_share,
-    max_item_share,
-):
-    """
-    Giải mô hình EV: thay beta kịch bản bằng beta kỳ vọng.
-    """
-    scenario_df = get_scenario_data()
-    beta_base_df, beta_s_df = get_beta_data()
-
-    p = scenario_df["Xác suất"].to_numpy(dtype=float)
-    beta_base = beta_base_df["Beta cơ bản"].to_numpy(dtype=float)
-    beta_s = beta_s_df[ITEMS].to_numpy(dtype=float)
-
-    beta_expected = p @ beta_s
-
-    res_ev, info_ev = solve_stochastic_model(
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-        probabilities=np.array([1.0]),
-        beta_base=beta_base,
-        beta_second=beta_expected.reshape(1, len(ITEMS)),
-    )
-
-    return res_ev, info_ev, beta_expected
-
-
-def evaluate_fixed_x(
-    fixed_x,
-    first_budget,
-    reserve_budget,
-    ai_capacity_ratio,
-    min_h_share,
-    max_item_share,
-):
-    """
-    Đánh giá nghiệm x_EV dưới cây kịch bản thật để tính EEV.
-    """
-    res, info = solve_stochastic_model(
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-        fixed_x=fixed_x,
-    )
-    return res, info
-
-
-def solve_wait_and_see_one_scenario(
-    scenario_index,
-    first_budget,
-    reserve_budget,
-    ai_capacity_ratio,
-    min_h_share,
-    max_item_share,
-):
-    """
-    Giải bài toán deterministic khi biết trước kịch bản.
-    Dùng beta của kịch bản cho cả first-stage và second-stage.
-    """
-    beta_base_df, beta_s_df = get_beta_data()
-    beta_s = beta_s_df[ITEMS].to_numpy(dtype=float)
-    beta = beta_s[scenario_index]
-
-    res, info = solve_stochastic_model(
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-        probabilities=np.array([1.0]),
-        beta_base=beta,
-        beta_second=beta.reshape(1, len(ITEMS)),
-    )
-
-    return res, info
-
-
-def compute_vss_evpi(
-    sp_value,
-    first_budget,
-    reserve_budget,
-    ai_capacity_ratio,
-    min_h_share,
-    max_item_share,
-):
-    """
-    Tính:
-        EEV = giá trị kỳ vọng khi dùng nghiệm EV
-        VSS = SP - EEV
-        WS = giá trị wait-and-see kỳ vọng
-        EVPI = WS - SP
-    """
-    scenario_df = get_scenario_data()
-    p = scenario_df["Xác suất"].to_numpy(dtype=float)
-
-    # EV model
-    res_ev, info_ev, beta_expected = solve_expected_value_model(
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-    )
-
-    if not res_ev.success:
+def pyomo_solver_name():
+    if not PYOMO_AVAILABLE:
         return None
 
-    x_ev = res_ev.x[:len(ITEMS)]
+    candidates = ["appsi_highs", "highs", "cbc", "glpk"]
 
-    # EEV: dùng x_EV trong cây kịch bản thật
-    res_eev, info_eev = evaluate_fixed_x(
-        fixed_x=x_ev,
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-    )
+    for name in candidates:
+        try:
+            solver = pyo.SolverFactory(name)
+            if solver is not None and solver.available(exception_flag=False):
+                return name
+        except Exception:
+            pass
 
-    if not res_eev.success:
-        return None
+    return None
 
-    eev_value = -res_eev.fun
-    vss = sp_value - eev_value
 
-    # Wait-and-see theo từng kịch bản
-    ws_rows = []
-    ws_values = []
+def solve_sp_pyomo():
+    if not PYOMO_AVAILABLE:
+        return {
+            "success": False,
+            "status": "Pyomo chưa được cài",
+            "solver": "None",
+        }
 
-    for s_idx, s in enumerate(SCENARIOS):
-        res_ws, info_ws = solve_wait_and_see_one_scenario(
-            scenario_index=s_idx,
-            first_budget=first_budget,
-            reserve_budget=reserve_budget,
-            ai_capacity_ratio=ai_capacity_ratio,
-            min_h_share=min_h_share,
-            max_item_share=max_item_share,
+    solver_name = pyomo_solver_name()
+
+    if solver_name is None:
+        return {
+            "success": False,
+            "status": "Không tìm thấy solver Pyomo khả dụng",
+            "solver": "None",
+        }
+
+    try:
+        m = pyo.ConcreteModel()
+
+        m.J = pyo.Set(initialize=J)
+        m.S = pyo.Set(initialize=S)
+
+        m.p = pyo.Param(m.S, initialize=P)
+        m.beta = pyo.Param(m.J, initialize=BETA)
+        m.beta_s = pyo.Param(m.S, m.J, initialize=BETA_S)
+
+        # First-stage decision
+        m.x = pyo.Var(m.J, within=pyo.NonNegativeReals)
+
+        # Second-stage recourse decision, phụ thuộc kịch bản
+        m.y = pyo.Var(m.S, m.J, within=pyo.NonNegativeReals)
+
+        m.budget1 = pyo.Constraint(
+            expr=sum(m.x[j] for j in m.J) <= BUDGET_1
         )
 
-        if res_ws.success:
-            first_df, second_df, summary = unpack_solution(
-                res_ws,
-                info_ws,
-                scenario_names=[s],
+        def budget2_rule(m, s):
+            return sum(m.y[s, j] for j in m.J) <= BUDGET_2
+
+        m.budget2 = pyo.Constraint(m.S, rule=budget2_rule)
+
+        def obj_rule(m):
+            first = sum(m.beta[j] * m.x[j] for j in m.J)
+            second = sum(
+                m.p[s] * sum(m.beta_s[s, j] * m.y[s, j] for j in m.J)
+                for s in m.S
             )
+            return first + second
 
-            x = summary["x"]
-            y = summary["y"][0]
-            value = summary["objective"]
+        m.obj = pyo.Objective(rule=obj_rule, sense=pyo.maximize)
 
-            row = {
-                "Kịch bản": s,
-                "Tên kịch bản": SCENARIO_LABELS[s],
-                "WS_s": value,
+        solver = pyo.SolverFactory(solver_name)
+        results = solver.solve(m, tee=False)
+
+        termination = str(results.solver.termination_condition).lower()
+
+        if "optimal" not in termination:
+            return {
+                "success": False,
+                "status": str(results.solver.termination_condition),
+                "solver": solver_name,
             }
 
-            for j, item in enumerate(ITEMS):
-                row[f"x_{item}"] = x[j]
-                row[f"y_{item}"] = y[j]
+        x = {j: float(pyo.value(m.x[j])) for j in J}
+        y = {
+            s: {j: float(pyo.value(m.y[s, j])) for j in J}
+            for s in S
+        }
 
-            ws_rows.append(row)
-            ws_values.append(value)
-        else:
-            ws_rows.append({
-                "Kịch bản": s,
-                "Tên kịch bản": SCENARIO_LABELS[s],
-                "WS_s": np.nan,
-            })
-            ws_values.append(np.nan)
+        return {
+            "success": True,
+            "status": "Optimal",
+            "solver": solver_name,
+            "objective": float(pyo.value(m.obj)),
+            "x": x,
+            "y": y,
+            "source": f"Pyomo/{solver_name}",
+        }
 
-    ws_df = pd.DataFrame(ws_rows)
-    ws_values = np.array(ws_values, dtype=float)
-    ws_expected = np.nansum(p * ws_values)
-    evpi = ws_expected - sp_value
-
-    result = {
-        "res_ev": res_ev,
-        "info_ev": info_ev,
-        "res_eev": res_eev,
-        "info_eev": info_eev,
-        "x_ev": x_ev,
-        "ev_value": -res_ev.fun,
-        "eev_value": eev_value,
-        "sp_value": sp_value,
-        "vss": vss,
-        "ws_df": ws_df,
-        "ws_expected": ws_expected,
-        "evpi": evpi,
-        "beta_expected": beta_expected,
-    }
-
-    return result
+    except Exception as exc:
+        return {
+            "success": False,
+            "status": str(exc),
+            "solver": solver_name,
+        }
 
 
-def solve_robust_regret(
-    first_budget,
-    reserve_budget,
-    ai_capacity_ratio,
-    min_h_share,
-    max_item_share,
-):
-    """
-    Robust optimization mở rộng: minimize maximum regret.
+def solve_sp_scipy():
+    if not SCIPY_AVAILABLE:
+        return {
+            "success": False,
+            "status": "SciPy chưa được cài",
+            "solver": "None",
+        }
 
-    Biến:
-        x_j
-        y_sj
-        z = regret lớn nhất
+    # Variable order:
+    # x_I, x_D, x_AI, x_H,
+    # y_s1_I,...,y_s1_H, y_s2_I,...,y_s4_H
+    n_x = len(J)
+    n_y = len(S) * len(J)
+    n = n_x + n_y
 
-    Ràng buộc regret:
-        WS_s - value_s(x, y_s) <= z
-    """
-    scenario_df = get_scenario_data()
-    beta_base_df, beta_s_df = get_beta_data()
+    c = np.zeros(n)
 
-    p = scenario_df["Xác suất"].to_numpy(dtype=float)
-    beta_s = beta_s_df[ITEMS].to_numpy(dtype=float)
+    for j_idx, j in enumerate(J):
+        c[j_idx] = -BETA[j]
 
-    n_items = len(ITEMS)
-    n_scenarios = len(SCENARIOS)
+    offset = n_x
 
-    # Tính WS_s trước
-    ws_values = []
-    for s_idx in range(n_scenarios):
-        res_ws, info_ws = solve_wait_and_see_one_scenario(
-            scenario_index=s_idx,
-            first_budget=first_budget,
-            reserve_budget=reserve_budget,
-            ai_capacity_ratio=ai_capacity_ratio,
-            min_h_share=min_h_share,
-            max_item_share=max_item_share,
-        )
-
-        if not res_ws.success:
-            return None, None
-
-        ws_values.append(-res_ws.fun)
-
-    ws_values = np.array(ws_values, dtype=float)
-
-    # Vector biến: x(4) + y(4*4) + z(1)
-    n_vars = n_items + n_scenarios * n_items + 1
-    z_index = n_vars - 1
-
-    c = np.zeros(n_vars)
-    c[z_index] = 1.0
+    for s_idx, s in enumerate(S):
+        for j_idx, j in enumerate(J):
+            idx = offset + s_idx * len(J) + j_idx
+            c[idx] = -P[s] * BETA_S[(s, j)]
 
     A_ub = []
     b_ub = []
 
-    # Budget first-stage
-    row = np.zeros(n_vars)
-    row[:n_items] = 1.0
+    row = np.zeros(n)
+    row[:n_x] = 1
     A_ub.append(row)
-    b_ub.append(first_budget)
+    b_ub.append(BUDGET_1)
 
-    # Min H
-    if min_h_share > 0:
-        row = np.zeros(n_vars)
-        row[ITEMS.index("H")] = -1.0
+    for s_idx, s in enumerate(S):
+        row = np.zeros(n)
+        start = offset + s_idx * len(J)
+        row[start:start + len(J)] = 1
         A_ub.append(row)
-        b_ub.append(-min_h_share * first_budget)
+        b_ub.append(BUDGET_2)
 
-    # Max share
-    if max_item_share < 1.0:
-        for j in range(n_items):
-            row = np.zeros(n_vars)
-            row[j] = 1.0
-            A_ub.append(row)
-            b_ub.append(max_item_share * first_budget)
-
-    # Recourse constraints
-    for s in range(n_scenarios):
-        start = n_items + s * n_items
-        end = start + n_items
-
-        row = np.zeros(n_vars)
-        row[start:end] = 1.0
-        A_ub.append(row)
-        b_ub.append(reserve_budget)
-
-        row = np.zeros(n_vars)
-        row[start + ITEMS.index("AI")] = 1.0
-        row[ITEMS.index("H")] = -ai_capacity_ratio
-        A_ub.append(row)
-        b_ub.append(0.0)
-
-    # Regret constraints:
-    # WS_s - beta_s*x - beta_s*y_s <= z
-    # - beta_s*x - beta_s*y_s - z <= -WS_s
-    for s in range(n_scenarios):
-        start = n_items + s * n_items
-        end = start + n_items
-
-        row = np.zeros(n_vars)
-        row[:n_items] = -beta_s[s]
-        row[start:end] = -beta_s[s]
-        row[z_index] = -1.0
-
-        A_ub.append(row)
-        b_ub.append(-ws_values[s])
-
-    bounds = [(0.0, None)] * n_vars
+    bounds = [(0, None)] * n
 
     res = linprog(
-        c=c,
+        c,
         A_ub=np.array(A_ub),
         b_ub=np.array(b_ub),
         bounds=bounds,
         method="highs",
     )
 
-    info = {
-        "ws_values": ws_values,
-        "beta_s": beta_s,
-        "probabilities": p,
-        "first_budget": first_budget,
-        "reserve_budget": reserve_budget,
+    if not res.success:
+        return {
+            "success": False,
+            "status": res.message,
+            "solver": "SciPy/HiGHS",
+        }
+
+    sol = res.x
+
+    x = {j: float(sol[j_idx]) for j_idx, j in enumerate(J)}
+
+    y = {}
+    for s_idx, s in enumerate(S):
+        y[s] = {}
+        for j_idx, j in enumerate(J):
+            idx = offset + s_idx * len(J) + j_idx
+            y[s][j] = float(sol[idx])
+
+    return {
+        "success": True,
+        "status": "Optimal",
+        "solver": "SciPy/HiGHS fallback",
+        "objective": float(-res.fun),
+        "x": x,
+        "y": y,
+        "source": "SciPy/HiGHS fallback",
     }
 
-    return res, info
+
+def solve_sp():
+    pyomo_res = solve_sp_pyomo()
+
+    if pyomo_res.get("success", False):
+        return pyomo_res
+
+    scipy_res = solve_sp_scipy()
+
+    if scipy_res.get("success", False):
+        scipy_res["pyomo_status"] = pyomo_res.get("status", "")
+        return scipy_res
+
+    return {
+        "success": False,
+        "status": f"Pyomo: {pyomo_res.get('status', '')}; SciPy: {scipy_res.get('status', '')}",
+        "solver": "None",
+    }
 
 
-def unpack_robust_solution(res, info):
-    if res is None or not res.success:
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), {}
+def solve_deterministic(coeff, label="Deterministic"):
+    if not SCIPY_AVAILABLE:
+        return {
+            "success": False,
+            "status": "SciPy chưa được cài",
+            "label": label,
+        }
 
-    beta_s = info["beta_s"]
-    ws_values = info["ws_values"]
-    p = info["probabilities"]
+    # Variables: x[4], y[4]
+    n = 8
+    c = np.zeros(n)
 
-    n_items = len(ITEMS)
-    n_scenarios = len(SCENARIOS)
+    for idx, j in enumerate(J):
+        c[idx] = -coeff[j]
+        c[4 + idx] = -coeff[j]
 
-    x = res.x[:n_items]
-    y = res.x[n_items:n_items + n_scenarios * n_items].reshape(n_scenarios, n_items)
-    z = res.x[-1]
+    A_ub = []
+    b_ub = []
 
-    first_df = pd.DataFrame({
-        "Hạng mục": ITEMS,
-        "Tên hạng mục": [ITEM_LABELS[i] for i in ITEMS],
-        "x robust": x,
-        "Tỷ trọng (%)": np.where(x.sum() > 0, x / x.sum() * 100, 0),
-    })
+    row = np.zeros(n)
+    row[:4] = 1
+    A_ub.append(row)
+    b_ub.append(BUDGET_1)
 
-    second_rows = []
-    regret_rows = []
+    row = np.zeros(n)
+    row[4:] = 1
+    A_ub.append(row)
+    b_ub.append(BUDGET_2)
 
-    for s in range(n_scenarios):
-        scenario = SCENARIOS[s]
-        value_s = np.sum(beta_s[s] * x) + np.sum(beta_s[s] * y[s])
-        regret = ws_values[s] - value_s
+    res = linprog(
+        c,
+        A_ub=np.array(A_ub),
+        b_ub=np.array(b_ub),
+        bounds=[(0, None)] * n,
+        method="highs",
+    )
 
-        regret_rows.append({
-            "Kịch bản": scenario,
-            "Tên kịch bản": SCENARIO_LABELS[scenario],
-            "WS_s": ws_values[s],
-            "Giá trị robust": value_s,
-            "Regret": regret,
-            "Xác suất": p[s],
-            "Regret kỳ vọng": p[s] * regret,
-        })
+    if not res.success:
+        return {
+            "success": False,
+            "status": res.message,
+            "label": label,
+        }
 
-        for j, item in enumerate(ITEMS):
-            second_rows.append({
-                "Kịch bản": scenario,
-                "Tên kịch bản": SCENARIO_LABELS[scenario],
-                "Hạng mục": item,
-                "Tên hạng mục": ITEM_LABELS[item],
-                "y robust": y[s, j],
-            })
+    sol = res.x
 
-    regret_df = pd.DataFrame(regret_rows)
-    second_df = pd.DataFrame(second_rows)
+    x = {j: float(sol[idx]) for idx, j in enumerate(J)}
+    y = {j: float(sol[4 + idx]) for idx, j in enumerate(J)}
 
-    summary = {
-        "max_regret": z,
-        "expected_regret": regret_df["Regret kỳ vọng"].sum(),
+    return {
+        "success": True,
+        "status": "Optimal",
+        "label": label,
+        "objective": float(-res.fun),
         "x": x,
+        "y": y,
+        "coeff": coeff,
+    }
+
+
+def solve_all_deterministic_scenarios():
+    results = {}
+
+    for s in S:
+        coeff = {j: BETA_S[(s, j)] for j in J}
+        results[s] = solve_deterministic(coeff, label=s)
+
+    return results
+
+
+def evaluate_fixed_x_in_sp(x_fixed):
+    # First-stage dùng beta nền theo cấu trúc SP gốc.
+    first_value = sum(BETA[j] * x_fixed.get(j, 0.0) for j in J)
+
+    # Khi x đã cố định, second-stage vẫn tối ưu theo từng kịch bản.
+    second_value = 0.0
+    y = {}
+
+    for s in S:
+        best_j = max(J, key=lambda j: BETA_S[(s, j)])
+        y[s] = {j: 0.0 for j in J}
+        y[s][best_j] = BUDGET_2
+
+        second_value += P[s] * BETA_S[(s, best_j)] * BUDGET_2
+
+    return {
+        "objective": first_value + second_value,
+        "x": dict(x_fixed),
         "y": y,
     }
 
-    return first_df, second_df, regret_df, summary
+
+def wait_and_see_value(det_results):
+    total = 0.0
+
+    for s in S:
+        if det_results[s]["success"]:
+            total += P[s] * det_results[s]["objective"]
+
+    return total
 
 
-def format_df(df):
-    return df.style.format(precision=2, thousands=",")
+def solve_robust_regret():
+    if not SCIPY_AVAILABLE:
+        return {
+            "success": False,
+            "status": "SciPy chưa được cài",
+        }
+
+    det_results = solve_all_deterministic_scenarios()
+
+    w_star = {
+        s: det_results[s]["objective"]
+        for s in S
+        if det_results[s]["success"]
+    }
+
+    if len(w_star) != len(S):
+        return {
+            "success": False,
+            "status": "Không giải được đủ deterministic scenario để tính regret",
+        }
+
+    # Variables:
+    # x[4], y_sj[16], R
+    n_x = len(J)
+    n_y = len(S) * len(J)
+    idx_R = n_x + n_y
+    n = idx_R + 1
+
+    c = np.zeros(n)
+    c[idx_R] = 1.0
+
+    A_ub = []
+    b_ub = []
+
+    # first-stage budget
+    row = np.zeros(n)
+    row[:n_x] = 1
+    A_ub.append(row)
+    b_ub.append(BUDGET_1)
+
+    # second-stage budget per scenario
+    offset = n_x
+    for s_idx, s in enumerate(S):
+        row = np.zeros(n)
+        start = offset + s_idx * len(J)
+        row[start:start + len(J)] = 1
+        A_ub.append(row)
+        b_ub.append(BUDGET_2)
+
+    # regret_s = W*_s - value_s(x,y_s) <= R
+    # - value_s(x,y_s) - R <= - W*_s
+    for s_idx, s in enumerate(S):
+        row = np.zeros(n)
+
+        for j_idx, j in enumerate(J):
+            row[j_idx] = -BETA_S[(s, j)]
+
+            y_idx = offset + s_idx * len(J) + j_idx
+            row[y_idx] = -BETA_S[(s, j)]
+
+        row[idx_R] = -1.0
+
+        A_ub.append(row)
+        b_ub.append(-w_star[s])
+
+    bounds = [(0, None)] * n
+
+    res = linprog(
+        c,
+        A_ub=np.array(A_ub),
+        b_ub=np.array(b_ub),
+        bounds=bounds,
+        method="highs",
+    )
+
+    if not res.success:
+        return {
+            "success": False,
+            "status": res.message,
+        }
+
+    sol = res.x
+
+    x = {j: float(sol[j_idx]) for j_idx, j in enumerate(J)}
+
+    y = {}
+    for s_idx, s in enumerate(S):
+        y[s] = {}
+        for j_idx, j in enumerate(J):
+            y_idx = offset + s_idx * len(J) + j_idx
+            y[s][j] = float(sol[y_idx])
+
+    regret_rows = []
+
+    for s in S:
+        value_s = sum(BETA_S[(s, j)] * x[j] for j in J)
+        value_s += sum(BETA_S[(s, j)] * y[s][j] for j in J)
+
+        regret_rows.append(
+            {
+                "Kịch bản": s,
+                "Tên kịch bản": S_LABELS[s],
+                "Best deterministic": w_star[s],
+                "Robust value": value_s,
+                "Regret": w_star[s] - value_s,
+            }
+        )
+
+    expected_value = 0.0
+
+    for s in S:
+        scenario_value = sum(BETA_S[(s, j)] * x[j] for j in J)
+        scenario_value += sum(BETA_S[(s, j)] * y[s][j] for j in J)
+        expected_value += P[s] * scenario_value
+
+    return {
+        "success": True,
+        "status": "Optimal",
+        "x": x,
+        "y": y,
+        "max_regret": float(sol[idx_R]),
+        "expected_value": float(expected_value),
+        "regret_table": pd.DataFrame(regret_rows),
+    }
+
+
+def first_stage_table(x_dict, label):
+    return pd.DataFrame(
+        {
+            "Hạng mục": [J_LABELS[j] for j in J],
+            "Mã": J,
+            label: [x_dict.get(j, 0.0) for j in J],
+        }
+    )
+
+
+def second_stage_table(y_dict):
+    rows = []
+
+    for s in S:
+        for j in J:
+            rows.append(
+                {
+                    "Kịch bản": s,
+                    "Tên kịch bản": S_LABELS[s],
+                    "Hạng mục": J_LABELS[j],
+                    "Mã": j,
+                    "y_sj": y_dict[s].get(j, 0.0),
+                    "Beta_s": BETA_S[(s, j)],
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def deterministic_summary_table(det_results):
+    rows = []
+
+    for s in S:
+        res = det_results[s]
+
+        if res["success"]:
+            best_x = max(res["x"], key=res["x"].get)
+            best_y = max(res["y"], key=res["y"].get)
+
+            rows.append(
+                {
+                    "Kịch bản": s,
+                    "Tên kịch bản": S_LABELS[s],
+                    "Trạng thái": res["status"],
+                    "Objective": res["objective"],
+                    "First-stage ưu tiên": J_LABELS[best_x],
+                    "Second-stage ưu tiên": J_LABELS[best_y],
+                    "x_I": res["x"]["I"],
+                    "x_D": res["x"]["D"],
+                    "x_AI": res["x"]["AI"],
+                    "x_H": res["x"]["H"],
+                }
+            )
+        else:
+            rows.append(
+                {
+                    "Kịch bản": s,
+                    "Tên kịch bản": S_LABELS[s],
+                    "Trạng thái": res["status"],
+                    "Objective": np.nan,
+                    "First-stage ưu tiên": "",
+                    "Second-stage ưu tiên": "",
+                    "x_I": np.nan,
+                    "x_D": np.nan,
+                    "x_AI": np.nan,
+                    "x_H": np.nan,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def compare_first_stage_table(sp_res, ev_res, robust_res):
+    rows = []
+
+    for j in J:
+        rows.append(
+            {
+                "Hạng mục": J_LABELS[j],
+                "Mã": j,
+                "SP": sp_res["x"].get(j, 0.0) if sp_res["success"] else np.nan,
+                "EV": ev_res["x"].get(j, 0.0) if ev_res["success"] else np.nan,
+                "Robust": robust_res["x"].get(j, 0.0) if robust_res["success"] else np.nan,
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def value_table(sp_res, ev_eval, wait_see, robust_res):
+    sp_value = sp_res["objective"] if sp_res["success"] else np.nan
+    ev_value = ev_eval["objective"]
+    robust_value = robust_res["expected_value"] if robust_res["success"] else np.nan
+
+    vss = sp_value - ev_value
+    evpi = wait_see - sp_value
+
+    return pd.DataFrame(
+        {
+            "Chỉ tiêu": [
+                "SP - Stochastic solution",
+                "EEV - EV solution evaluated in SP",
+                "Wait-and-see",
+                "Robust expected value",
+                "VSS = SP - EEV",
+                "EVPI = WS - SP",
+            ],
+            "Giá trị": [
+                sp_value,
+                ev_value,
+                wait_see,
+                robust_value,
+                vss,
+                evpi,
+            ],
+        }
+    )
+
+
+def make_styled_table(df, decimals=3):
+    show_df = df.copy()
+
+    format_dict = {}
+
+    for col in show_df.columns:
+        if pd.api.types.is_numeric_dtype(show_df[col]):
+            format_dict[col] = "{:." + str(decimals) + "f}"
+
+    styler = show_df.style.format(format_dict)
+
+    try:
+        styler = styler.hide(axis="index")
+    except Exception:
+        try:
+            styler = styler.hide_index()
+        except Exception:
+            pass
+
+    styler = styler.set_properties(
+        **{
+            "background-color": "#ffffff",
+            "color": BRAND,
+            "border": f"1px solid {BRAND}",
+            "padding": "10px 12px",
+            "font-size": "16px",
+        }
+    )
+
+    styler = styler.set_table_styles(
+        [
+            {
+                "selector": "thead th",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("font-weight", "800"),
+                    ("border", f"1px solid {BRAND}"),
+                    ("padding", "12px 12px"),
+                    ("font-size", "16px"),
+                    ("text-align", "left"),
+                ],
+            },
+            {
+                "selector": "tbody td",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("border", f"1px solid {BRAND}"),
+                ],
+            },
+            {
+                "selector": "table",
+                "props": [
+                    ("border-collapse", "collapse"),
+                    ("width", "100%"),
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                ],
+            },
+        ]
+    )
+
+    return styler
+
+
+def show_table(df, decimals=3):
+    st.table(make_styled_table(df, decimals=decimals))
+
+
+def style_base_fig(fig, height=430):
+    fig.update_layout(
+        height=height,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(color=BRAND, size=15),
+        title_font=dict(color=BRAND, size=20),
+        xaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        yaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            gridcolor="rgba(5,49,81,0.18)",
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        legend=dict(font=dict(color=BRAND)),
+    )
+
+    return fig
 
 
 def render():
-    st.title("Bài 10. Quy hoạch ngẫu nhiên hai giai đoạn dưới bất định")
-    st.caption("Two-stage stochastic programming | First-stage | Recourse | VSS | EVPI | Robust regret")
+    st.title("Bài 10. Two-stage Stochastic Programming")
+    st.caption("Pyomo first-stage/second-stage, EV, SP, VSS, EVPI và robust regret")
 
-    st.markdown(
-        """
-        Bài toán mô phỏng quyết định phân bổ ngân sách trong điều kiện bất định.
-        Chính phủ phải chọn ngân sách **first-stage** trước khi biết kịch bản kinh tế,
-        sau đó dùng ngân sách dự phòng **recourse/second-stage** khi kịch bản xảy ra.
-        """
-    )
-
-    scenario_df = get_scenario_data()
-    beta_base_df, beta_s_df = get_beta_data()
-
-    with st.expander("Dữ liệu đầu vào của Bài 10", expanded=False):
-        st.subheader("Cấu trúc kịch bản")
-        st.dataframe(scenario_df, use_container_width=True)
-
-        st.subheader("Beta cơ bản")
-        st.dataframe(beta_base_df, use_container_width=True)
-
-        st.subheader("Beta theo kịch bản")
-        beta_show = beta_s_df.copy()
-        beta_show["Tên kịch bản"] = beta_show["Kịch bản"].map(SCENARIO_LABELS)
-        st.dataframe(beta_show, use_container_width=True)
-
-    st.sidebar.header("Thiết lập mô hình")
-
-    first_budget = st.sidebar.number_input(
-        "Ngân sách first-stage",
-        min_value=10000.0,
-        max_value=150000.0,
-        value=65000.0,
-        step=5000.0,
-    )
-
-    reserve_budget = st.sidebar.number_input(
-        "Ngân sách dự phòng second-stage",
-        min_value=1000.0,
-        max_value=100000.0,
-        value=15000.0,
-        step=1000.0,
-    )
-
-    ai_capacity_ratio = st.sidebar.slider(
-        "Ràng buộc y_AI <= ratio * x_H",
-        min_value=0.0,
-        max_value=2.0,
-        value=0.5,
-        step=0.1,
-    )
-
-    min_h_share = st.sidebar.slider(
-        "Sàn tỷ trọng H trong first-stage",
-        min_value=0.0,
-        max_value=0.8,
-        value=0.0,
-        step=0.05,
-    )
-
-    max_item_share = st.sidebar.slider(
-        "Trần tỷ trọng mỗi hạng mục trong first-stage",
-        min_value=0.25,
-        max_value=1.0,
-        value=1.0,
-        step=0.05,
-    )
-
-    st.subheader("1. Mô hình Stochastic Programming")
-
-    res_sp, info_sp = solve_stochastic_model(
-        first_budget=first_budget,
-        reserve_budget=reserve_budget,
-        ai_capacity_ratio=ai_capacity_ratio,
-        min_h_share=min_h_share,
-        max_item_share=max_item_share,
-    )
-
-    if not res_sp.success:
-        st.error("Bài toán không khả thi hoặc solver không tìm được nghiệm.")
-        st.code(res_sp.message)
+    if not PYOMO_AVAILABLE and not SCIPY_AVAILABLE:
+        st.error("Cần cài `pyomo` hoặc `scipy` để chạy bài này.")
         return
 
-    first_df, second_df, summary = unpack_solution(res_sp, info_sp)
+    sp_res = solve_sp()
+    det_results = solve_all_deterministic_scenarios()
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Z* SP", f"{summary['objective']:,.2f}")
-    col2.metric("First-stage dùng", f"{summary['first_budget_used']:,.0f}")
-    col3.metric("Lợi ích first-stage", f"{summary['first_benefit']:,.2f}")
-    col4.metric("Lợi ích recourse kỳ vọng", f"{summary['expected_recourse_benefit']:,.2f}")
+    mean_coeff = expected_coefficients()
+    ev_res = solve_deterministic(mean_coeff, label="EV")
+    ev_eval = evaluate_fixed_x_in_sp(ev_res["x"]) if ev_res["success"] else {"objective": np.nan, "x": {}, "y": {}}
 
-    st.markdown("### Phân bổ first-stage tối ưu")
-    st.dataframe(format_df(first_df), use_container_width=True)
+    ws_value = wait_and_see_value(det_results)
+    robust_res = solve_robust_regret()
 
-    st.markdown("### Phân bổ second-stage/recourse theo kịch bản")
-    st.dataframe(format_df(second_df), use_container_width=True)
+    tabs = st.tabs(
+        [
+            "10.5.1 Pyomo SP",
+            "10.5.2 EV & Deterministic",
+            "10.5.3 VSS & EVPI",
+            "10.5.4 Robust",
+            "10.6 Chính sách",
+        ]
+    )
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Biểu đồ",
-        "EV - VSS - EVPI",
-        "Deterministic từng kịch bản",
-        "Robust regret",
-    ])
+    # =====================================================
+    # 10.5.1
+    # =====================================================
+    with tabs[0]:
+        st.header("10.5.1. Mô hình two-stage bằng Pyomo")
 
-    with tab1:
-        st.markdown("### Biểu đồ phân bổ first-stage")
-        chart_first = first_df.set_index("Tên hạng mục")[["x first-stage"]]
-        st.bar_chart(chart_first)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Pyomo", "Có" if PYOMO_AVAILABLE else "Không")
+        c2.metric("Solver dùng", sp_res.get("source", sp_res.get("solver", "None")))
+        c3.metric("Trạng thái", sp_res.get("status", ""))
 
-        st.markdown("### Bảng pivot recourse theo kịch bản")
-        pivot_second = second_df.pivot_table(
-            index="Tên kịch bản",
-            columns="Tên hạng mục",
-            values="y recourse",
-            aggfunc="sum",
-            fill_value=0,
-        )
-        st.dataframe(format_df(pivot_second), use_container_width=True)
-        st.bar_chart(pivot_second)
+        if "pyomo_status" in sp_res:
+            st.info(
+                f"Pyomo chưa giải được do: {sp_res['pyomo_status']}. "
+                "App đang dùng SciPy/HiGHS fallback để tránh lỗi deploy."
+            )
 
-    with tab2:
-        st.markdown("### Tính EV, EEV, VSS và EVPI")
+        st.subheader("Hệ số first-stage")
+        show_table(beta_table(), decimals=3)
 
-        vss_evpi = compute_vss_evpi(
-            sp_value=summary["objective"],
-            first_budget=first_budget,
-            reserve_budget=reserve_budget,
-            ai_capacity_ratio=ai_capacity_ratio,
-            min_h_share=min_h_share,
-            max_item_share=max_item_share,
-        )
+        st.subheader("Hệ số second-stage theo kịch bản")
+        show_table(scenario_table(), decimals=3)
 
-        if vss_evpi is None:
-            st.error("Không tính được EV/VSS/EVPI.")
+        if not sp_res["success"]:
+            st.error(sp_res["status"])
         else:
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("SP", f"{vss_evpi['sp_value']:,.2f}")
-            c2.metric("EEV", f"{vss_evpi['eev_value']:,.2f}")
-            c3.metric("VSS = SP - EEV", f"{vss_evpi['vss']:,.2f}")
-            c4.metric("EVPI = WS - SP", f"{vss_evpi['evpi']:,.2f}")
+            st.subheader("Quyết định first-stage tối ưu")
+            show_table(first_stage_table(sp_res["x"], "x_j - SP"), decimals=2)
 
-            beta_expected_df = pd.DataFrame({
-                "Hạng mục": ITEMS,
-                "Tên hạng mục": [ITEM_LABELS[i] for i in ITEMS],
-                "Beta kỳ vọng": vss_evpi["beta_expected"],
-            })
+            st.subheader("Quyết định second-stage theo kịch bản")
+            show_table(second_stage_table(sp_res["y"]), decimals=2)
 
-            st.markdown("#### Beta kỳ vọng dùng trong mô hình EV")
-            st.dataframe(format_df(beta_expected_df), use_container_width=True)
+            c4, c5, c6 = st.columns(3)
+            c4.metric("Objective SP", f"{sp_res['objective']:,.1f}")
+            c5.metric("Budget first-stage", f"{sum(sp_res['x'].values()):,.0f}")
+            c6.metric("Budget second mỗi kịch bản", f"{BUDGET_2:,.0f}")
 
-            ev_first_df, ev_second_df, ev_summary = unpack_solution(
-                vss_evpi["res_ev"],
-                vss_evpi["info_ev"],
-                scenario_names=["EV"],
+            x_plot = first_stage_table(sp_res["x"], "x_j - SP")
+
+            fig = px.bar(
+                x_plot,
+                x="Hạng mục",
+                y="x_j - SP",
+                color="Mã",
+                text=x_plot["x_j - SP"].round(0),
+                title="First-stage decision của lời giải stochastic SP",
+                color_discrete_map=MULTI_COLORS,
+            )
+            fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1)
+            fig.update_layout(xaxis_title="Hạng mục", yaxis_title="Ngân sách")
+            style_base_fig(fig, height=430)
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.success(
+                "Mô hình đã tách rõ first-stage x_j và second-stage y_sj. "
+                "Second-stage được điều chỉnh theo từng kịch bản sau khi bất định được quan sát."
             )
 
-            compare_first = pd.DataFrame({
-                "Hạng mục": ITEMS,
-                "Tên hạng mục": [ITEM_LABELS[i] for i in ITEMS],
-                "SP first-stage": summary["x"],
-                "EV first-stage": vss_evpi["x_ev"],
-            })
+    # =====================================================
+    # 10.5.2
+    # =====================================================
+    with tabs[1]:
+        st.header("10.5.2. Deterministic scenario, EV và SP")
 
-            st.markdown("#### So sánh first-stage giữa SP và EV")
-            st.dataframe(format_df(compare_first), use_container_width=True)
+        st.subheader("Bài toán xác định theo từng kịch bản")
+        det_summary = deterministic_summary_table(det_results)
+        show_table(det_summary, decimals=2)
 
-            st.bar_chart(compare_first.set_index("Tên hạng mục")[["SP first-stage", "EV first-stage"]])
+        st.subheader("Hệ số kỳ vọng EV")
+        ev_coeff_df = pd.DataFrame(
+            {
+                "Hạng mục": [J_LABELS[j] for j in J],
+                "Mã": J,
+                "Beta kỳ vọng": [mean_coeff[j] for j in J],
+            }
+        )
+        show_table(ev_coeff_df, decimals=4)
 
-            st.markdown(
-                """
-                **Diễn giải nhanh:**
+        if ev_res["success"]:
+            st.subheader("First-stage của lời giải EV")
+            show_table(first_stage_table(ev_res["x"], "x_j - EV"), decimals=2)
 
-                - **VSS > 0**: xét bất định bằng stochastic programming tốt hơn dùng mô hình kỳ vọng đơn giản.
-                - **VSS = 0 hoặc rất nhỏ**: nghiệm SP và EV gần giống nhau với bộ tham số hiện tại.
-                - **EVPI** cho biết giá trị tối đa của thông tin hoàn hảo nếu biết trước kịch bản tương lai.
-                """
+        if sp_res["success"] and ev_res["success"] and robust_res["success"]:
+            compare_x = compare_first_stage_table(sp_res, ev_res, robust_res)
+            st.subheader("So sánh first-stage: SP, EV, Robust")
+            show_table(compare_x, decimals=2)
+
+            compare_long = compare_x.melt(
+                id_vars=["Hạng mục", "Mã"],
+                value_vars=["SP", "EV", "Robust"],
+                var_name="Phương pháp",
+                value_name="Ngân sách",
             )
 
-    with tab3:
-        st.markdown("### Bài toán deterministic khi biết trước từng kịch bản")
-
-        deterministic_rows = []
-
-        for s_idx, scenario in enumerate(SCENARIOS):
-            res_ws, info_ws = solve_wait_and_see_one_scenario(
-                scenario_index=s_idx,
-                first_budget=first_budget,
-                reserve_budget=reserve_budget,
-                ai_capacity_ratio=ai_capacity_ratio,
-                min_h_share=min_h_share,
-                max_item_share=max_item_share,
+            fig = px.bar(
+                compare_long,
+                x="Hạng mục",
+                y="Ngân sách",
+                color="Phương pháp",
+                barmode="group",
+                title="So sánh quyết định first-stage",
+                color_discrete_map=MULTI_COLORS,
             )
+            fig.update_traces(marker_line_color="white", marker_line_width=1)
+            fig.update_layout(xaxis_title="Hạng mục", yaxis_title="Ngân sách")
+            style_base_fig(fig, height=460)
+            st.plotly_chart(fig, use_container_width=True)
 
-            if res_ws.success:
-                first_ws, second_ws, sum_ws = unpack_solution(
-                    res_ws,
-                    info_ws,
-                    scenario_names=[scenario],
+        st.success(
+            "Lời giải deterministic theo từng kịch bản cho thấy nếu biết trước kịch bản xấu, quyết định first-stage có thể chuyển sang H như một tài sản bảo hiểm."
+        )
+
+    # =====================================================
+    # 10.5.3
+    # =====================================================
+    with tabs[2]:
+        st.header("10.5.3. Tính VSS và EVPI")
+
+        if not sp_res["success"]:
+            st.error("Chưa có nghiệm SP để tính VSS và EVPI.")
+        else:
+            values_df = value_table(sp_res, ev_eval, ws_value, robust_res)
+            show_table(values_df, decimals=3)
+
+            value_plot = values_df[
+                values_df["Chỉ tiêu"].isin(
+                    [
+                        "SP - Stochastic solution",
+                        "EEV - EV solution evaluated in SP",
+                        "Wait-and-see",
+                        "Robust expected value",
+                    ]
                 )
+            ].copy()
 
-                row = {
-                    "Kịch bản": scenario,
-                    "Tên kịch bản": SCENARIO_LABELS[scenario],
-                    "Z* deterministic": sum_ws["objective"],
-                }
+            fig = px.bar(
+                value_plot,
+                x="Chỉ tiêu",
+                y="Giá trị",
+                text=value_plot["Giá trị"].round(1),
+                title="So sánh giá trị SP, EEV, Wait-and-see và Robust",
+            )
+            fig.update_traces(
+                marker_color=BRAND,
+                textposition="outside",
+                textfont=dict(color=BRAND),
+            )
+            fig.update_layout(xaxis_title="Chỉ tiêu", yaxis_title="Giá trị mục tiêu")
+            style_base_fig(fig, height=480)
+            st.plotly_chart(fig, use_container_width=True)
 
-                for j, item in enumerate(ITEMS):
-                    row[f"x_{item}"] = sum_ws["x"][j]
-                    row[f"y_{item}"] = sum_ws["y"][0, j]
+            vss = values_df.loc[values_df["Chỉ tiêu"] == "VSS = SP - EEV", "Giá trị"].iloc[0]
+            evpi = values_df.loc[values_df["Chỉ tiêu"] == "EVPI = WS - SP", "Giá trị"].iloc[0]
 
-                deterministic_rows.append(row)
-
-        deterministic_df = pd.DataFrame(deterministic_rows)
-        st.dataframe(format_df(deterministic_df), use_container_width=True)
-
-        if not deterministic_df.empty:
-            chart_det = deterministic_df.set_index("Tên kịch bản")[
-                ["x_I", "x_D", "x_AI", "x_H"]
-            ]
-            st.bar_chart(chart_det)
-
-    with tab4:
-        st.markdown("### Robust optimization: cực tiểu hóa regret lớn nhất")
-
-        res_robust, info_robust = solve_robust_regret(
-            first_budget=first_budget,
-            reserve_budget=reserve_budget,
-            ai_capacity_ratio=ai_capacity_ratio,
-            min_h_share=min_h_share,
-            max_item_share=max_item_share,
-        )
-
-        robust_first, robust_second, regret_df, robust_summary = unpack_robust_solution(
-            res_robust,
-            info_robust,
-        )
-
-        if robust_first.empty:
-            st.error("Không giải được mô hình robust regret.")
-        else:
             c1, c2 = st.columns(2)
-            c1.metric("Max regret", f"{robust_summary['max_regret']:,.2f}")
-            c2.metric("Expected regret", f"{robust_summary['expected_regret']:,.2f}")
+            c1.metric("VSS", f"{vss:,.3f}")
+            c2.metric("EVPI", f"{evpi:,.3f}")
 
-            st.markdown("#### First-stage robust")
-            st.dataframe(format_df(robust_first), use_container_width=True)
+            st.success(
+                "VSS đo lợi ích của việc dùng mô hình stochastic thay vì chỉ dùng kịch bản kỳ vọng. "
+                "EVPI đo mức sẵn sàng trả tối đa cho thông tin hoàn hảo về kịch bản tương lai."
+            )
 
-            st.markdown("#### Regret theo từng kịch bản")
-            st.dataframe(format_df(regret_df), use_container_width=True)
+    # =====================================================
+    # 10.5.4
+    # =====================================================
+    with tabs[3]:
+        st.header("10.5.4. Robust optimization: cực tiểu hóa regret xấu nhất")
 
-            st.bar_chart(robust_first.set_index("Tên hạng mục")[["x robust"]])
+        if not robust_res["success"]:
+            st.error(robust_res["status"])
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Trạng thái", robust_res["status"])
+            c2.metric("Max regret", f"{robust_res['max_regret']:,.1f}")
+            c3.metric("Expected value", f"{robust_res['expected_value']:,.1f}")
 
-    st.subheader("2. Gợi ý thảo luận chính sách")
+            st.subheader("First-stage robust")
+            show_table(first_stage_table(robust_res["x"], "x_j - Robust"), decimals=2)
 
-    st.markdown(
-        """
-        **a) SP có xu hướng đầu tư H nhiều hơn hay ít hơn lời giải xác định?**  
-        Nếu bật sàn nhân lực số hoặc siết ràng buộc `y_AI <= ratio*x_H`, mô hình sẽ tăng đầu tư H vì H tạo năng lực hấp thụ AI trong tương lai.
+            st.subheader("Regret theo kịch bản")
+            show_table(robust_res["regret_table"], decimals=3)
 
-        **b) VSS dương nói lên điều gì?**  
-        VSS dương cho thấy việc xét bất định có giá trị. Chính sách không nên chỉ dựa vào một kịch bản trung bình.
+            regret_plot = robust_res["regret_table"].copy()
 
-        **c) EVPI có ý nghĩa gì?**  
-        EVPI là giá trị của thông tin hoàn hảo. Nếu EVPI cao, cần đầu tư mạnh hơn vào dự báo, dữ liệu thời gian thực và hệ thống cảnh báo sớm.
+            fig = px.bar(
+                regret_plot,
+                x="Tên kịch bản",
+                y="Regret",
+                text=regret_plot["Regret"].round(1),
+                title="Regret của nghiệm robust theo từng kịch bản",
+            )
+            fig.update_traces(
+                marker_color=BRAND,
+                textposition="outside",
+                textfont=dict(color=BRAND),
+            )
+            fig.update_layout(xaxis_title="Kịch bản", yaxis_title="Regret")
+            style_base_fig(fig, height=430)
+            st.plotly_chart(fig, use_container_width=True)
 
-        **d) Vì sao cần giữ ngân sách dự phòng?**  
-        Vì Việt Nam phụ thuộc vào xuất khẩu, FDI và chuỗi cung ứng toàn cầu, nên một phần ngân sách cần được giữ lại để phản ứng với kịch bản bi quan hoặc khủng hoảng.
-        """
-    )
+            if sp_res["success"]:
+                compare_x = compare_first_stage_table(sp_res, ev_res, robust_res)
+                show_table(compare_x, decimals=2)
 
-    st.warning(
-        "Lưu ý: Vì đây là mô hình LP tuyến tính, nếu không đặt sàn H hoặc trần tỷ trọng mỗi hạng mục, nghiệm có thể dồn nhiều ngân sách vào hạng mục có beta cao nhất. "
-        "Bạn có thể chỉnh ở thanh bên để kết quả cân bằng và thực tế hơn."
-    )
+            st.success(
+                "Robust regret không tối đa hóa kỳ vọng thuần túy, mà tìm quyết định giảm thiệt hại tương đối trong kịch bản xấu nhất."
+            )
+
+    # =====================================================
+    # 10.6
+    # =====================================================
+    with tabs[4]:
+        st.header("10.6. Thảo luận chính sách")
+
+        st.markdown("### a) SP đầu tư H nhiều hơn hay ít hơn so với lời giải xác định?")
+
+        st.markdown(
+            """
+            Lời giải SP cân bằng giữa lợi ích kỳ vọng và khả năng điều chỉnh ở second-stage.
+            Với cấu trúc dữ liệu của bài, first-stage theo SP thường vẫn ưu tiên hạng mục có beta nền cao nhất.
+            Tuy nhiên, khi xét từng kịch bản xác định, các kịch bản xấu có xu hướng làm H trở nên hấp dẫn hơn,
+            vì nhân lực số có vai trò như một năng lực chống chịu.
+
+            Do đó, nếu mô hình mở rộng để hệ số first-stage cũng chịu tác động mạnh bởi kịch bản,
+            hoặc thêm ràng buộc phục hồi sau cú sốc, SP có thể đầu tư H nhiều hơn so với lời giải kỳ vọng EV.
+            """
+        )
+
+        st.markdown("### b) VSS dương nói lên điều gì?")
+
+        st.markdown(
+            """
+            VSS dương nghĩa là việc cân nhắc bất định ngay từ lúc ra quyết định first-stage tạo ra giá trị thực.
+            Nói cách khác, lập kế hoạch theo xác suất giúp tránh quyết định quá thiên về kịch bản trung bình.
+
+            Trong hoạch định chính sách Việt Nam, điều này rất quan trọng vì các cú sốc như dịch bệnh,
+            thiên tai, gián đoạn chuỗi cung ứng hoặc biến động công nghệ có thể làm thay đổi hiệu quả đầu tư.
+            Nếu chỉ dùng một kịch bản trung bình, chính sách dễ đánh giá thấp nhu cầu đầu tư vào năng lực chống chịu,
+            như nhân lực số, dữ liệu công, an ninh mạng và năng lực vận hành từ xa.
+            """
+        )
+
+        st.markdown("### c) Việt Nam có đang dưới đầu tư vào nhân lực số như một hàng hóa bảo hiểm không?")
+
+        st.markdown(
+            """
+            Đại dịch COVID-19 và bão Yagi cho thấy năng lực số không chỉ tạo tăng trưởng,
+            mà còn là năng lực duy trì hoạt động trong khủng hoảng. Nhân lực số giúp doanh nghiệp,
+            cơ quan nhà nước và người lao động chuyển sang mô hình trực tuyến, xử lý dữ liệu,
+            vận hành hệ thống số và thích ứng nhanh hơn.
+
+            Vì lợi ích của nhân lực số thường xuất hiện rõ nhất khi có cú sốc,
+            thị trường và chính sách ngắn hạn có thể đánh giá thấp khoản đầu tư này.
+            Đây là lý do nhân lực số có thể được xem như một **hàng hóa bảo hiểm**:
+            bình thường có vẻ không tạo lợi ích biên cao nhất, nhưng khi khủng hoảng xảy ra,
+            nó làm giảm tổn thất hệ thống.
+
+            Bài học chính sách là Việt Nam không nên chỉ đầu tư vào AI, hạ tầng hay dữ liệu theo logic tăng trưởng,
+            mà cần đầu tư đủ vào H để bảo đảm khả năng hấp thụ, phục hồi và chống chịu.
+            """
+        )
+
+        st.info(
+            "Kết luận: SP giúp đưa bất định vào quyết định first-stage; robust regret giúp kiểm soát thiệt hại trong kịch bản xấu nhất."
+        )
+
+
+def run():
+    render()
