@@ -1,12 +1,9 @@
 # bai08_dynamic_2026_2035.py
-# Bài 8 — Tối ưu động phân bổ liên thời gian 2026-2035
-# Module dùng được với streamlit_app.py có cơ chế gọi module.render()
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
 
 try:
     from scipy.optimize import minimize
@@ -15,922 +12,1007 @@ except Exception:
     SCIPY_AVAILABLE = False
 
 
-# =====================================================
-# 1. THAM SỐ MẶC ĐỊNH
-# =====================================================
+BRAND = "#053151"
 
+MULTI_COLORS = {
+    "K": "#053151",
+    "D": "#E76F51",
+    "AI": "#2A9D8F",
+    "H": "#F4A261",
+    "Y": "#053151",
+    "C": "#E76F51",
+    "Kế hoạch gốc": "#053151",
+    "Có cú sốc": "#E76F51",
+    "Tối ưu SLSQP": "#053151",
+    "Đầu tư trải đều": "#E76F51",
+    "Đầu tư front-load": "#2A9D8F",
+}
+
+
+# =========================================================
+# BÀI 8 — MÔ HÌNH ĐỘNG COBB-DOUGLAS 2026-2035
+# Cách B: scipy.optimize.minimize với SLSQP + callback
+# =========================================================
+
+
+T = 10
 YEARS = np.arange(2026, 2036)
-T = len(YEARS)
 
+# Hệ số Cobb-Douglas
 ALPHA = 0.33
-BETA = 0.42
+BETA_L = 0.42
 GAMMA = 0.10
 DELTA = 0.08
 THETA = 0.07
 
-# Điều kiện đầu kỳ 2026, lấy từ gợi ý đề bài
-DEFAULT_INITIAL = {
-    "K0": 27500.0,
-    "L0": 53.4,
-    "D0": 20.3,
-    "AI0": 86.0,
-    "H0": 30.0,
-    "Y2025": 12847.6,
-}
+# Trạng thái ban đầu năm 2026
+K0 = 27500.0
+D0 = 20.3
+AI0 = 86.0
+H0 = 30.0
+L0 = 54.0
+
+# Tăng trưởng ngoại sinh
+G_L = 0.004
+G_A = 0.012
+
+# Khấu hao / suy giảm
+DEP_K = 0.05
+DEP_D = 0.04
+DEP_AI = 0.05
+DEP_H = 0.02
+
+# Hiệu quả chuyển đổi đầu tư thành trạng thái số
+PHI_D = 0.004
+PHI_AI = 0.020
+PHI_H = 0.012
+
+# Giới hạn kỹ thuật
+D_MAX = 55.0
+AI_MAX = 180.0
+H_MAX = 100.0
+
+# Ràng buộc tài khóa mềm
+MIN_CONSUME_SHARE = 0.55
+MAX_INVEST_SHARE = 0.38
+
+# Giá trị GDP mục tiêu ban đầu để hiệu chỉnh A0
+Y0_TARGET = 14000.0
+
+A0 = Y0_TARGET / (
+    (K0 ** ALPHA)
+    * (L0 ** BETA_L)
+    * (D0 ** GAMMA)
+    * (AI0 ** DELTA)
+    * (H0 ** THETA)
+)
+
+TERMINAL_WEIGHT = 8.0
 
 
-def calibrate_A0():
-    K0 = DEFAULT_INITIAL["K0"]
-    L0 = DEFAULT_INITIAL["L0"]
-    D0 = DEFAULT_INITIAL["D0"]
-    AI0 = DEFAULT_INITIAL["AI0"]
-    H0 = DEFAULT_INITIAL["H0"]
-    Y2025 = DEFAULT_INITIAL["Y2025"]
-
-    A0 = Y2025 / (
-        (K0 ** ALPHA)
-        * (L0 ** BETA)
-        * (D0 ** GAMMA)
-        * (AI0 ** DELTA)
-        * (H0 ** THETA)
-    )
-
-    return A0
-
-
-# =====================================================
-# 2. HÀM SẢN XUẤT VÀ MÔ PHỎNG ĐỘNG
-# =====================================================
-
-def production(A, K, L, D, AI, H):
-    eps = 1e-9
+def production(K, D, AI, H, t):
+    L_t = L0 * ((1 + G_L) ** t)
+    A_t = A0 * ((1 + G_A) ** t)
 
     return (
-        A
-        * (max(K, eps) ** ALPHA)
-        * (max(L, eps) ** BETA)
-        * (max(D, eps) ** GAMMA)
-        * (max(AI, eps) ** DELTA)
-        * (max(H, eps) ** THETA)
+        A_t
+        * (max(K, 1e-9) ** ALPHA)
+        * (max(L_t, 1e-9) ** BETA_L)
+        * (max(D, 1e-9) ** GAMMA)
+        * (max(AI, 1e-9) ** DELTA)
+        * (max(H, 1e-9) ** THETA)
     )
 
 
-def utility_log(C):
-    return np.log(np.maximum(C, 1e-6))
+def simulate_path(x_vec, shock_year=None, shock_factor=1.0):
+    X = np.asarray(x_vec, dtype=float).reshape(T, 4)
+
+    K = np.zeros(T + 1)
+    D = np.zeros(T + 1)
+    AI = np.zeros(T + 1)
+    H = np.zeros(T + 1)
+
+    Y = np.zeros(T)
+    C = np.zeros(T)
+
+    K[0] = K0
+    D[0] = D0
+    AI[0] = AI0
+    H[0] = H0
+
+    for t in range(T):
+        y_t = production(K[t], D[t], AI[t], H[t], t)
+
+        if shock_year is not None and YEARS[t] == shock_year:
+            y_t = y_t * shock_factor
+
+        Y[t] = y_t
+        C[t] = Y[t] - X[t].sum()
+
+        K[t + 1] = (1 - DEP_K) * K[t] + X[t, 0]
+        D[t + 1] = (1 - DEP_D) * D[t] + PHI_D * X[t, 1]
+        AI[t + 1] = (1 - DEP_AI) * AI[t] + PHI_AI * X[t, 2]
+        H[t + 1] = (1 - DEP_H) * H[t] + PHI_H * X[t, 3]
+
+    terminal_y = production(K[T], D[T], AI[T], H[T], T)
+
+    return {
+        "X": X,
+        "K": K,
+        "D": D,
+        "AI": AI,
+        "H": H,
+        "Y": Y,
+        "C": C,
+        "terminal_y": terminal_y,
+    }
 
 
-def simulate_policy(
-    decision_vector,
-    rho=0.96,
-    g_A=0.012,
-    g_L=0.006,
-    inv_rate_max=0.28,
-    shock_2028=False,
-    terminal_weight=2.5,
-):
-    """
-    decision_vector có kích thước T*4.
-    Mỗi năm có 4 tỷ trọng đầu tư:
-    u_K, u_D, u_AI, u_H.
-    Tổng tỷ trọng đầu tư mỗi năm <= inv_rate_max.
-    """
+def welfare_from_sim(sim, rho=0.97):
+    C = sim["C"]
 
-    u = np.array(decision_vector, dtype=float).reshape(T, 4)
-    u = np.clip(u, 0.0, inv_rate_max)
+    if np.any(C <= 1):
+        return -1e9
 
-    K = DEFAULT_INITIAL["K0"]
-    L = DEFAULT_INITIAL["L0"]
-    D = DEFAULT_INITIAL["D0"]
-    AI = DEFAULT_INITIAL["AI0"]
-    H = DEFAULT_INITIAL["H0"]
-    A = calibrate_A0()
+    flow_welfare = sum((rho ** t) * np.log(C[t]) for t in range(T))
+    terminal_value = TERMINAL_WEIGHT * (rho ** T) * np.log(max(sim["terminal_y"], 1e-9))
+
+    return flow_welfare + terminal_value
+
+
+def penalty_from_sim(sim):
+    X = sim["X"]
+
+    violations = []
+
+    # Tiêu dùng không được quá thấp
+    violations.extend(MIN_CONSUME_SHARE * sim["Y"] - sim["C"])
+
+    # Tổng đầu tư mỗi năm không vượt tỷ lệ tối đa của GDP
+    violations.extend(X.sum(axis=1) - MAX_INVEST_SHARE * sim["Y"])
+
+    # Trần trạng thái số
+    violations.extend(sim["D"][1:] - D_MAX)
+    violations.extend(sim["AI"][1:] - AI_MAX)
+    violations.extend(sim["H"][1:] - H_MAX)
+
+    # Tiêu dùng dương
+    violations.extend(1 - sim["C"])
+
+    v = np.maximum(0, np.array(violations, dtype=float))
+
+    return 1e-5 * np.sum(v ** 2) + 1000 * np.sum(v > 0)
+
+
+def objective_from_x(x_vec, rho=0.97, shock_year=None, shock_factor=1.0):
+    sim = simulate_path(x_vec, shock_year=shock_year, shock_factor=shock_factor)
+    welfare = welfare_from_sim(sim, rho=rho)
+    penalty = penalty_from_sim(sim)
+
+    return -welfare + penalty
+
+
+@st.cache_data(show_spinner=False)
+def solve_slsqp_cached(rho=0.97, shock_year=None, shock_factor=1.0):
+    scales = np.tile(np.array([5500.0, 2500.0, 2500.0, 2500.0]), T)
+
+    x0_real = np.tile(np.array([2800.0, 650.0, 450.0, 600.0]), T)
+    u0 = x0_real / scales
+
+    callback_history = []
+
+    def obj_u(u):
+        x = np.asarray(u) * scales
+        return objective_from_x(
+            x,
+            rho=rho,
+            shock_year=shock_year,
+            shock_factor=shock_factor,
+        )
+
+    def callback(u):
+        x = np.asarray(u) * scales
+        sim = simulate_path(x, shock_year=shock_year, shock_factor=shock_factor)
+        callback_history.append(
+            {
+                "Iteration": len(callback_history) + 1,
+                "Welfare": welfare_from_sim(sim, rho=rho),
+                "Penalty": penalty_from_sim(sim),
+            }
+        )
+
+    res = minimize(
+        obj_u,
+        u0,
+        method="SLSQP",
+        bounds=[(0.0, 1.0)] * (T * 4),
+        callback=callback,
+        options={
+            "maxiter": 160,
+            "ftol": 1e-8,
+            "disp": False,
+        },
+    )
+
+    x_opt = np.asarray(res.x) * scales
+    sim = simulate_path(x_opt, shock_year=shock_year, shock_factor=shock_factor)
+
+    return {
+        "success": bool(res.success),
+        "message": str(res.message),
+        "x": x_opt,
+        "sim": sim,
+        "welfare": welfare_from_sim(sim, rho=rho),
+        "penalty": penalty_from_sim(sim),
+        "callback": pd.DataFrame(callback_history),
+        "rho": rho,
+        "shock_year": shock_year,
+        "shock_factor": shock_factor,
+    }
+
+
+def path_table(sim):
+    X = sim["X"]
+
+    df = pd.DataFrame(
+        {
+            "Năm": YEARS,
+            "K": sim["K"][:-1],
+            "D": sim["D"][:-1],
+            "AI": sim["AI"][:-1],
+            "H": sim["H"][:-1],
+            "Y": sim["Y"],
+            "C": sim["C"],
+            "I_K": X[:, 0],
+            "I_D": X[:, 1],
+            "I_AI": X[:, 2],
+            "I_H": X[:, 3],
+            "Tổng đầu tư": X.sum(axis=1),
+        }
+    )
+
+    return df
+
+
+def terminal_state_table(sim):
+    return pd.DataFrame(
+        {
+            "Trạng thái": ["K 2036", "D 2036", "AI 2036", "H 2036", "Y terminal"],
+            "Giá trị": [
+                sim["K"][-1],
+                sim["D"][-1],
+                sim["AI"][-1],
+                sim["H"][-1],
+                sim["terminal_y"],
+            ],
+        }
+    )
+
+
+def build_index_state_df(sim):
+    base = {
+        "K": sim["K"][0],
+        "D": sim["D"][0],
+        "AI": sim["AI"][0],
+        "H": sim["H"][0],
+    }
 
     rows = []
-    welfare = 0.0
 
-    for t, year in enumerate(YEARS):
-        Y_plan = production(A, K, L, D, AI, H)
-
-        shock_factor = 0.92 if (shock_2028 and year == 2028) else 1.0
-        Y_effective = Y_plan * shock_factor
-
-        inv_share_total = float(u[t].sum())
-
-        if inv_share_total > inv_rate_max:
-            u[t] = u[t] / inv_share_total * inv_rate_max
-            inv_share_total = inv_rate_max
-
-        I_K = u[t, 0] * Y_effective
-        I_D = u[t, 1] * Y_effective
-        I_AI = u[t, 2] * Y_effective
-        I_H = u[t, 3] * Y_effective
-
-        total_investment = I_K + I_D + I_AI + I_H
-        C = max(Y_effective - total_investment, 1e-6)
-
-        welfare += (rho ** t) * utility_log(C)
-
-        rows.append({
-            "Năm": year,
-            "A": A,
-            "K": K,
-            "L": L,
-            "D": D,
-            "AI": AI,
-            "H": H,
-            "Y kế hoạch": Y_plan,
-            "Y thực sau cú sốc": Y_effective,
-            "C": C,
-            "I_K": I_K,
-            "I_D": I_D,
-            "I_AI": I_AI,
-            "I_H": I_H,
-            "Tổng đầu tư": total_investment,
-            "Tỷ lệ đầu tư": inv_share_total,
-            "Cú sốc": "Có" if shock_factor < 1 else "Không"
-        })
-
-        # Phương trình động học
-        # K có khấu hao, D/AI/H tích lũy chậm hơn theo hiệu suất đầu tư.
-        K_next = (1 - 0.045) * K + I_K
-
-        D_next = D + 0.0040 * I_D
-        AI_next = AI + 0.0120 * I_AI
-        H_next = H + 0.0030 * I_H
-
-        # Chặn giá trị hợp lý để tránh mô phỏng phi thực tế.
-        D_next = min(D_next, 55.0)
-        AI_next = min(AI_next, 260.0)
-        H_next = min(H_next, 70.0)
-
-        L_next = L * (1 + g_L)
-        A_next = A * (1 + g_A)
-
-        K, D, AI, H, L, A = K_next, D_next, AI_next, H_next, L_next, A_next
-
-    # Thêm terminal value để mô hình không chỉ ưu tiên tiêu dùng hiện tại.
-    terminal_Y = production(A, K, L, D, AI, H)
-    welfare += terminal_weight * (rho ** T) * utility_log(terminal_Y)
-
-    traj = pd.DataFrame(rows)
-
-    terminal_state = {
-        "K_2036": K,
-        "D_2036": D,
-        "AI_2036": AI,
-        "H_2036": H,
-        "Y_terminal": terminal_Y,
-        "Welfare": welfare,
-    }
-
-    return traj, terminal_state
-
-
-# =====================================================
-# 3. TỐI ƯU BẰNG SCIPY SLSQP
-# =====================================================
-
-def initial_guess(inv_rate_max=0.28):
-    """
-    Điểm khởi tạo cân bằng:
-    Tổng đầu tư khoảng 24% GDP, chia cho K, D, AI, H.
-    """
-    base = np.array([0.40, 0.25, 0.15, 0.20])
-    total_rate = min(0.24, inv_rate_max * 0.90)
-    shares = base * total_rate
-    return np.tile(shares, T)
-
-
-def objective_to_minimize(
-    z,
-    rho,
-    g_A,
-    g_L,
-    inv_rate_max,
-    shock_2028,
-    terminal_weight,
-):
-    _, terminal = simulate_policy(
-        z,
-        rho=rho,
-        g_A=g_A,
-        g_L=g_L,
-        inv_rate_max=inv_rate_max,
-        shock_2028=shock_2028,
-        terminal_weight=terminal_weight,
-    )
-
-    return -terminal["Welfare"]
-
-
-def constraint_values(
-    z,
-    rho,
-    g_A,
-    g_L,
-    inv_rate_max,
-    min_D_2035,
-    min_H_2035,
-    min_AI_2035,
-    shock_2028,
-    terminal_weight,
-):
-    u = np.array(z).reshape(T, 4)
-
-    # Mỗi năm tổng tỷ trọng đầu tư <= inv_rate_max
-    annual_constraints = inv_rate_max - u.sum(axis=1)
-
-    traj, terminal = simulate_policy(
-        z,
-        rho=rho,
-        g_A=g_A,
-        g_L=g_L,
-        inv_rate_max=inv_rate_max,
-        shock_2028=shock_2028,
-        terminal_weight=terminal_weight,
-    )
-
-    # Lấy giá trị cuối năm 2035 từ dòng cuối cùng.
-    last = traj.iloc[-1]
-
-    d_constraint = last["D"] - min_D_2035
-    h_constraint = last["H"] - min_H_2035
-    ai_constraint = last["AI"] - min_AI_2035
-
-    return np.concatenate([
-        annual_constraints,
-        np.array([d_constraint, h_constraint, ai_constraint])
-    ])
-
-
-def solve_dynamic_problem(
-    rho=0.96,
-    g_A=0.012,
-    g_L=0.006,
-    inv_rate_max=0.28,
-    min_D_2035=30.0,
-    min_H_2035=40.0,
-    min_AI_2035=120.0,
-    shock_2028=False,
-    terminal_weight=2.5,
-):
-    if not SCIPY_AVAILABLE:
-        z0 = initial_guess(inv_rate_max)
-        traj, terminal = simulate_policy(
-            z0,
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            shock_2028=shock_2028,
-            terminal_weight=terminal_weight,
+    for t in range(T):
+        rows.append(
+            {
+                "Năm": YEARS[t],
+                "K": sim["K"][t] / base["K"] * 100,
+                "D": sim["D"][t] / base["D"] * 100,
+                "AI": sim["AI"][t] / base["AI"] * 100,
+                "H": sim["H"][t] / base["H"] * 100,
+            }
         )
 
-        return {
-            "success": False,
-            "message": "SciPy chưa được cài đặt. App dùng nghiệm khởi tạo cân bằng làm fallback.",
-            "z": z0,
-            "traj": traj,
-            "terminal": terminal,
-            "method": "Fallback"
-        }
+    return pd.DataFrame(rows)
 
-    z0 = initial_guess(inv_rate_max)
 
-    bounds = [(0.0, inv_rate_max) for _ in range(T * 4)]
-
-    cons = {
-        "type": "ineq",
-        "fun": lambda z: constraint_values(
-            z,
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            min_D_2035=min_D_2035,
-            min_H_2035=min_H_2035,
-            min_AI_2035=min_AI_2035,
-            shock_2028=shock_2028,
-            terminal_weight=terminal_weight,
-        )
-    }
-
-    result = minimize(
-        objective_to_minimize,
-        z0,
-        args=(rho, g_A, g_L, inv_rate_max, shock_2028, terminal_weight),
-        method="SLSQP",
-        bounds=bounds,
-        constraints=[cons],
-        options={
-            "maxiter": 600,
-            "ftol": 1e-8,
-            "disp": False
-        }
-    )
-
-    if result.success:
-        z = result.x
-        method = "SLSQP optimal"
+def simulate_rule_strategy(strategy="even", rho=0.97):
+    if strategy == "front":
+        rates = np.array([0.34, 0.32, 0.30, 0.25, 0.22, 0.19, 0.16, 0.15, 0.14, 0.13])
     else:
-        # Dùng nghiệm tốt nhất solver trả về, nếu không tốt thì dùng z0.
-        z = result.x if result.x is not None else z0
-        method = "SLSQP returned best effort"
+        rates = np.ones(T) * 0.22
 
-    traj, terminal = simulate_policy(
-        z,
-        rho=rho,
-        g_A=g_A,
-        g_L=g_L,
-        inv_rate_max=inv_rate_max,
-        shock_2028=shock_2028,
-        terminal_weight=terminal_weight,
-    )
+    shares = np.array([0.45, 0.18, 0.15, 0.22])
+
+    K = K0
+    D = D0
+    AI = AI0
+    H = H0
+
+    X = np.zeros((T, 4))
+
+    for t in range(T):
+        y_t = production(K, D, AI, H, t)
+        total_invest = rates[t] * y_t
+        X[t, :] = total_invest * shares
+
+        K = (1 - DEP_K) * K + X[t, 0]
+        D = (1 - DEP_D) * D + PHI_D * X[t, 1]
+        AI = (1 - DEP_AI) * AI + PHI_AI * X[t, 2]
+        H = (1 - DEP_H) * H + PHI_H * X[t, 3]
+
+    sim = simulate_path(X.reshape(-1))
+    welfare = welfare_from_sim(sim, rho=rho)
 
     return {
-        "success": bool(result.success),
-        "message": result.message,
-        "z": z,
-        "traj": traj,
-        "terminal": terminal,
-        "method": method,
-        "raw": result,
+        "x": X.reshape(-1),
+        "sim": sim,
+        "welfare": welfare,
+        "penalty": penalty_from_sim(sim),
     }
 
 
-# =====================================================
-# 4. CHIẾN LƯỢC CỐ ĐỊNH: TRẢI ĐỀU VÀ FRONT-LOAD
-# =====================================================
+def compare_shock_table(base_sim, shock_sim):
+    base = path_table(base_sim)
+    shock = path_table(shock_sim)
 
-def fixed_strategy_vector(strategy="even", inv_rate_max=0.28):
-    base_even = np.array([0.40, 0.25, 0.15, 0.20])
+    df = pd.DataFrame(
+        {
+            "Năm": YEARS,
+            "Y kế hoạch": base["Y"],
+            "Y có cú sốc": shock["Y"],
+            "C kế hoạch": base["C"],
+            "C có cú sốc": shock["C"],
+            "Đầu tư kế hoạch": base["Tổng đầu tư"],
+            "Đầu tư có cú sốc": shock["Tổng đầu tư"],
+            "Chênh lệch đầu tư": shock["Tổng đầu tư"] - base["Tổng đầu tư"],
+        }
+    )
 
-    z = []
+    return df
 
-    for t, year in enumerate(YEARS):
-        if strategy == "even":
-            total_rate = min(0.24, inv_rate_max * 0.90)
-            mix = base_even
 
-        elif strategy == "front_load":
-            if t <= 2:
-                total_rate = min(0.32, inv_rate_max)
-                mix = np.array([0.38, 0.27, 0.20, 0.15])
-            elif t <= 5:
-                total_rate = min(0.24, inv_rate_max)
-                mix = np.array([0.35, 0.25, 0.20, 0.20])
+def investment_adjustment_after_shock(base_sim, shock_sim):
+    base = path_table(base_sim)
+    shock = path_table(shock_sim)
+
+    post = base["Năm"] >= 2029
+
+    rows = []
+
+    for col, label in [
+        ("I_K", "K"),
+        ("I_D", "D"),
+        ("I_AI", "AI"),
+        ("I_H", "H"),
+    ]:
+        rows.append(
+            {
+                "Hạng mục": label,
+                "Đầu tư gốc sau 2028": base.loc[post, col].sum(),
+                "Đầu tư sốc sau 2028": shock.loc[post, col].sum(),
+                "Chênh lệch": shock.loc[post, col].sum() - base.loc[post, col].sum(),
+            }
+        )
+
+    return pd.DataFrame(rows)
+
+
+def strategy_compare_table(opt_res, even_res, front_res):
+    rows = []
+
+    for name, res in [
+        ("Tối ưu SLSQP", opt_res),
+        ("Đầu tư trải đều", even_res),
+        ("Đầu tư front-load", front_res),
+    ]:
+        sim = res["sim"]
+        path = path_table(sim)
+
+        rows.append(
+            {
+                "Chiến lược": name,
+                "Welfare tổng": res["welfare"],
+                "Penalty": res["penalty"],
+                "Tổng đầu tư": path["Tổng đầu tư"].sum(),
+                "Y 2035": path["Y"].iloc[-1],
+                "C bình quân": path["C"].mean(),
+                "Terminal Y": sim["terminal_y"],
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values("Welfare tổng", ascending=False).reset_index(drop=True)
+
+
+def rho_policy_table(opt_097, opt_090):
+    path_097 = path_table(opt_097["sim"])
+    path_090 = path_table(opt_090["sim"])
+
+    return pd.DataFrame(
+        {
+            "Chỉ tiêu": [
+                "Welfare",
+                "Tổng đầu tư",
+                "Đầu tư AI",
+                "Đầu tư H",
+                "C bình quân",
+                "Y 2035",
+                "Terminal Y",
+            ],
+            "ρ = 0.97": [
+                opt_097["welfare"],
+                path_097["Tổng đầu tư"].sum(),
+                path_097["I_AI"].sum(),
+                path_097["I_H"].sum(),
+                path_097["C"].mean(),
+                path_097["Y"].iloc[-1],
+                opt_097["sim"]["terminal_y"],
+            ],
+            "ρ = 0.90": [
+                opt_090["welfare"],
+                path_090["Tổng đầu tư"].sum(),
+                path_090["I_AI"].sum(),
+                path_090["I_H"].sum(),
+                path_090["C"].mean(),
+                path_090["Y"].iloc[-1],
+                opt_090["sim"]["terminal_y"],
+            ],
+        }
+    )
+
+
+def make_styled_table(df, decimals=3):
+    show_df = df.copy()
+
+    format_dict = {}
+    for col in show_df.columns:
+        if pd.api.types.is_numeric_dtype(show_df[col]):
+            if str(col).lower() in ["năm", "iteration"]:
+                format_dict[col] = "{:.0f}"
             else:
-                total_rate = min(0.17, inv_rate_max)
-                mix = np.array([0.30, 0.22, 0.18, 0.30])
+                format_dict[col] = "{:." + str(decimals) + "f}"
 
-        elif strategy == "human_first":
-            total_rate = min(0.24, inv_rate_max * 0.90)
-            mix = np.array([0.25, 0.20, 0.15, 0.40])
+    styler = show_df.style.format(format_dict)
 
-        else:
-            total_rate = min(0.24, inv_rate_max * 0.90)
-            mix = base_even
+    try:
+        styler = styler.hide(axis="index")
+    except Exception:
+        try:
+            styler = styler.hide_index()
+        except Exception:
+            pass
 
-        z.extend(list(mix * total_rate))
-
-    return np.array(z)
-
-
-def simulate_fixed_strategy(
-    strategy,
-    rho=0.96,
-    g_A=0.012,
-    g_L=0.006,
-    inv_rate_max=0.28,
-    shock_2028=False,
-    terminal_weight=2.5,
-):
-    z = fixed_strategy_vector(strategy=strategy, inv_rate_max=inv_rate_max)
-
-    traj, terminal = simulate_policy(
-        z,
-        rho=rho,
-        g_A=g_A,
-        g_L=g_L,
-        inv_rate_max=inv_rate_max,
-        shock_2028=shock_2028,
-        terminal_weight=terminal_weight,
+    styler = styler.set_properties(
+        **{
+            "background-color": "#ffffff",
+            "color": BRAND,
+            "border": f"1px solid {BRAND}",
+            "padding": "10px 12px",
+            "font-size": "16px",
+        }
     )
 
-    return {
-        "z": z,
-        "traj": traj,
-        "terminal": terminal,
-        "strategy": strategy
-    }
-
-
-# =====================================================
-# 5. HÀM HIỂN THỊ BIỂU ĐỒ
-# =====================================================
-
-def plot_trajectory(df, title):
-    fig = px.line(
-        df,
-        x="Năm",
-        y=["K", "D", "AI", "H"],
-        markers=True,
-        title=title
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def plot_y_c(df, title):
-    fig = px.line(
-        df,
-        x="Năm",
-        y=["Y kế hoạch", "Y thực sau cú sốc", "C"],
-        markers=True,
-        title=title
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def allocation_long(df):
-    cols = ["I_K", "I_D", "I_AI", "I_H"]
-
-    long_df = df[["Năm"] + cols].melt(
-        id_vars="Năm",
-        value_vars=cols,
-        var_name="Hạng mục",
-        value_name="Đầu tư"
+    styler = styler.set_table_styles(
+        [
+            {
+                "selector": "thead th",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("font-weight", "800"),
+                    ("border", f"1px solid {BRAND}"),
+                    ("padding", "12px 12px"),
+                    ("font-size", "16px"),
+                    ("text-align", "left"),
+                ],
+            },
+            {
+                "selector": "tbody td",
+                "props": [
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                    ("border", f"1px solid {BRAND}"),
+                ],
+            },
+            {
+                "selector": "table",
+                "props": [
+                    ("border-collapse", "collapse"),
+                    ("width", "100%"),
+                    ("background-color", "#ffffff"),
+                    ("color", BRAND),
+                ],
+            },
+        ]
     )
 
-    mapping = {
-        "I_K": "Đầu tư vật chất K",
-        "I_D": "Hạ tầng/chuyển đổi số D",
-        "I_AI": "Năng lực AI",
-        "I_H": "Nhân lực số H",
-    }
-
-    long_df["Hạng mục"] = long_df["Hạng mục"].map(mapping)
-
-    return long_df
+    return styler
 
 
-# =====================================================
-# 6. GIAO DIỆN STREAMLIT
-# =====================================================
+def show_table(df, decimals=3):
+    st.table(make_styled_table(df, decimals=decimals))
+
+
+def style_base_fig(fig, height=430):
+    fig.update_layout(
+        height=height,
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(color=BRAND, size=15),
+        title_font=dict(color=BRAND, size=20),
+        xaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        yaxis=dict(
+            showline=True,
+            linecolor=BRAND,
+            gridcolor="rgba(5,49,81,0.18)",
+            tickfont=dict(color=BRAND),
+            title_font=dict(color=BRAND),
+        ),
+        legend=dict(font=dict(color=BRAND)),
+    )
+    return fig
+
 
 def render():
-    st.markdown(
-        """
-        <div class="card">
-            <h1>⏳ Bài 8 — Tối ưu động phân bổ liên thời gian 2026–2035</h1>
-            <p>
-            Module này xây dựng mô hình tối ưu động phi tuyến cho chiến lược phân bổ đầu tư vào
-            vốn vật chất K, số hóa D, AI và nhân lực số H trong giai đoạn 2026–2035.
-            Mô hình dùng scipy.optimize SLSQP để tối đa hóa tổng phúc lợi liên thời gian.
-            </p>
-            <span class="pill">Dynamic Optimization</span>
-            <span class="pill">SLSQP</span>
-            <span class="pill">Cobb-Douglas</span>
-            <span class="pill">2026–2035</span>
-        </div>
-        """,
-        unsafe_allow_html=True
+    st.title("Bài 8. Mô hình động Cobb-Douglas 2026-2035")
+    st.caption("Tối ưu động bằng scipy SLSQP, quỹ đạo đầu tư, cú sốc 2028 và so sánh chiến lược đầu tư")
+
+    if not SCIPY_AVAILABLE:
+        st.error("Chưa cài scipy. Hãy thêm `scipy` vào requirements.txt.")
+        return
+
+    opt_res = solve_slsqp_cached(rho=0.97, shock_year=None, shock_factor=1.0)
+    shock_res = solve_slsqp_cached(rho=0.97, shock_year=2028, shock_factor=0.92)
+
+    even_res = simulate_rule_strategy(strategy="even", rho=0.97)
+    front_res = simulate_rule_strategy(strategy="front", rho=0.97)
+
+    path_opt = path_table(opt_res["sim"])
+
+    tabs = st.tabs(
+        [
+            "8.3.1 SLSQP",
+            "8.3.2 Quỹ đạo tối ưu",
+            "8.3.3 Cú sốc 2028",
+            "8.3.4 So sánh chiến lược",
+            "8.4 Chính sách",
+        ]
     )
 
-    with st.sidebar:
-        st.markdown("### ⚙️ Tham số Bài 8")
-
-        rho = st.number_input(
-            "ρ - Hệ số chiết khấu",
-            min_value=0.80,
-            max_value=0.999,
-            value=0.96,
-            step=0.01,
-            format="%.3f"
-        )
-
-        g_A = st.number_input(
-            "Tăng trưởng TFP A mỗi năm",
-            min_value=0.000,
-            max_value=0.050,
-            value=0.012,
-            step=0.001,
-            format="%.3f"
-        )
-
-        g_L = st.number_input(
-            "Tăng trưởng lao động L mỗi năm",
-            min_value=0.000,
-            max_value=0.030,
-            value=0.006,
-            step=0.001,
-            format="%.3f"
-        )
-
-        inv_rate_max = st.number_input(
-            "Trần tỷ lệ đầu tư/GDP mỗi năm",
-            min_value=0.10,
-            max_value=0.50,
-            value=0.28,
-            step=0.01,
-            format="%.2f"
-        )
-
-        min_D_2035 = st.number_input(
-            "Ràng buộc D tối thiểu cuối kỳ",
-            min_value=20.0,
-            max_value=55.0,
-            value=30.0,
-            step=1.0
-        )
-
-        min_AI_2035 = st.number_input(
-            "Ràng buộc AI tối thiểu cuối kỳ",
-            min_value=80.0,
-            max_value=260.0,
-            value=120.0,
-            step=5.0
-        )
-
-        min_H_2035 = st.number_input(
-            "Ràng buộc H tối thiểu cuối kỳ",
-            min_value=30.0,
-            max_value=70.0,
-            value=40.0,
-            step=1.0
-        )
-
-        terminal_weight = st.number_input(
-            "Trọng số giá trị cuối kỳ",
-            min_value=0.0,
-            max_value=10.0,
-            value=2.5,
-            step=0.5
-        )
-
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📌 Mô hình",
-        "8.3.1 SLSQP",
-        "8.3.2 Quỹ đạo tối ưu",
-        "8.3.3 Cú sốc 2028",
-        "8.3.4 So sánh chiến lược"
-    ])
-
     # =====================================================
-    # TAB 1 — MÔ HÌNH
+    # 8.3.1
     # =====================================================
-
-    with tab1:
-        st.header("1. Mô hình tối ưu động")
-
-        st.markdown("### Hàm mục tiêu phúc lợi liên thời gian")
-
-        st.latex(r"\max \sum_{t=2026}^{2035} \rho^{t-2026} U(C_t)")
-
-        st.markdown("Trong module này sử dụng hàm thỏa dụng log:")
-
-        st.latex(r"U(C_t) = \ln(C_t)")
-
-        st.markdown("### Hàm sản xuất Cobb-Douglas mở rộng")
-
-        st.latex(
-            r"Y_t = A_t K_t^{0.33} L_t^{0.42} D_t^{0.10} AI_t^{0.08} H_t^{0.07}"
-        )
-
-        st.markdown("### Phương trình động học")
-
-        st.latex(r"K_{t+1} = (1-\delta_K)K_t + I^K_t")
-        st.latex(r"D_{t+1} = D_t + \eta_D I^D_t")
-        st.latex(r"AI_{t+1} = AI_t + \eta_{AI} I^{AI}_t")
-        st.latex(r"H_{t+1} = H_t + \eta_H I^H_t")
-
-        st.markdown("### Điều kiện đầu kỳ")
-
-        initial_df = pd.DataFrame({
-            "Biến": ["K0", "L0", "D0", "AI0", "H0", "Y2025", "A0 hiệu chỉnh"],
-            "Giá trị": [
-                DEFAULT_INITIAL["K0"],
-                DEFAULT_INITIAL["L0"],
-                DEFAULT_INITIAL["D0"],
-                DEFAULT_INITIAL["AI0"],
-                DEFAULT_INITIAL["H0"],
-                DEFAULT_INITIAL["Y2025"],
-                calibrate_A0(),
-            ]
-        })
-
-        st.dataframe(initial_df.round(4), use_container_width=True)
-
-        st.info(
-            "Mô hình dùng tỷ trọng đầu tư theo GDP làm biến quyết định. "
-            "Mỗi năm, tổng tỷ trọng đầu tư vào K, D, AI và H không vượt quá trần đầu tư/GDP do người dùng chọn ở sidebar."
-        )
-
-    # =====================================================
-    # TAB 2 — SLSQP
-    # =====================================================
-
-    with tab2:
-        st.header("Câu 8.3.1 — Giải bài toán bằng scipy.optimize.minimize SLSQP")
-
-        result = solve_dynamic_problem(
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            min_D_2035=min_D_2035,
-            min_H_2035=min_H_2035,
-            min_AI_2035=min_AI_2035,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
-        )
-
-        traj = result["traj"]
-        terminal = result["terminal"]
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        c1.metric("Trạng thái", "Optimal" if result["success"] else "Best effort")
-        c2.metric("Welfare", f"{terminal['Welfare']:,.4f}")
-        c3.metric("Y terminal", f"{terminal['Y_terminal']:,.2f}")
-        c4.metric("Phương pháp", result["method"])
-
-        if not result["success"]:
-            st.warning(
-                f"SLSQP chưa hội tụ hoàn toàn: {result['message']}. "
-                "App vẫn hiển thị nghiệm tốt nhất solver trả về để phân tích."
-            )
-
-        st.markdown("### Bảng quỹ đạo tối ưu")
-        st.dataframe(traj.round(4), use_container_width=True)
-
-        st.markdown("### Cơ cấu đầu tư tối ưu theo năm")
-
-        long_inv = allocation_long(traj)
-
-        fig_inv = px.bar(
-            long_inv,
-            x="Năm",
-            y="Đầu tư",
-            color="Hạng mục",
-            barmode="stack",
-            title="Phân bổ đầu tư tối ưu theo năm"
-        )
-        st.plotly_chart(fig_inv, use_container_width=True)
-
-    # =====================================================
-    # TAB 3 — QUỸ ĐẠO
-    # =====================================================
-
-    with tab3:
-        st.header("Câu 8.3.2 — Quỹ đạo tối ưu của K, D, AI, H, Y, C")
-
-        result = solve_dynamic_problem(
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            min_D_2035=min_D_2035,
-            min_H_2035=min_H_2035,
-            min_AI_2035=min_AI_2035,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
-        )
-
-        traj = result["traj"]
-
-        plot_trajectory(
-            traj,
-            "Quỹ đạo trạng thái tối ưu: K, D, AI, H"
-        )
-
-        plot_y_c(
-            traj,
-            "Quỹ đạo sản lượng Y và tiêu dùng C"
-        )
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("D 2035", f"{traj['D'].iloc[-1]:.2f}")
-        c2.metric("AI 2035", f"{traj['AI'].iloc[-1]:.2f}")
-        c3.metric("H 2035", f"{traj['H'].iloc[-1]:.2f}")
-        c4.metric("C 2035", f"{traj['C'].iloc[-1]:,.2f}")
-
-        st.success(
-            "Quỹ đạo tối ưu cho thấy mô hình không chỉ chọn đầu tư trong một năm, "
-            "mà thiết kế đường đi liên thời gian: đầu tư hôm nay làm thay đổi K, D, AI, H và do đó ảnh hưởng đến Y, C các năm sau."
-        )
-
-    # =====================================================
-    # TAB 4 — CÚ SỐC 2028
-    # =====================================================
-
-    with tab4:
-        st.header("Câu 8.3.3 — Cú sốc năm 2028: Y giảm 8% so với kế hoạch")
-
-        base = solve_dynamic_problem(
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            min_D_2035=min_D_2035,
-            min_H_2035=min_H_2035,
-            min_AI_2035=min_AI_2035,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
-        )
-
-        shock = solve_dynamic_problem(
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            min_D_2035=min_D_2035,
-            min_H_2035=min_H_2035,
-            min_AI_2035=min_AI_2035,
-            shock_2028=True,
-            terminal_weight=terminal_weight,
-        )
-
-        base_traj = base["traj"].copy()
-        shock_traj = shock["traj"].copy()
-
-        base_traj["Kịch bản"] = "Không cú sốc"
-        shock_traj["Kịch bản"] = "Cú sốc 2028"
-
-        both = pd.concat([base_traj, shock_traj], ignore_index=True)
+    with tabs[0]:
+        st.header("8.3.1. Cài đặt mô hình bằng scipy.optimize.minimize - SLSQP")
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Welfare không sốc", f"{base['terminal']['Welfare']:,.4f}")
-        c2.metric("Welfare cú sốc", f"{shock['terminal']['Welfare']:,.4f}")
-        c3.metric(
-            "Chênh lệch welfare",
-            f"{shock['terminal']['Welfare'] - base['terminal']['Welfare']:,.4f}"
+        c1.metric("Trạng thái", "Optimal" if opt_res["success"] else "Kiểm tra")
+        c2.metric("Welfare", f"{opt_res['welfare']:.3f}")
+        c3.metric("Penalty", f"{opt_res['penalty']:.4f}")
+
+        model_df = pd.DataFrame(
+            {
+                "Thành phần": [
+                    "Hàm mục tiêu",
+                    "Phương pháp",
+                    "Giai đoạn",
+                    "Số biến quyết định",
+                    "ρ",
+                    "Terminal weight",
+                    "Ràng buộc tiêu dùng",
+                    "Ràng buộc đầu tư",
+                ],
+                "Giá trị": [
+                    "Max Σ ρ^t log(C_t) + terminal value",
+                    "scipy.optimize.minimize - SLSQP",
+                    "2026-2035",
+                    "40 biến đầu tư: I_K, I_D, I_AI, I_H trong 10 năm",
+                    "0.97",
+                    TERMINAL_WEIGHT,
+                    f"C_t >= {MIN_CONSUME_SHARE:.0%}Y_t",
+                    f"I_t <= {MAX_INVEST_SHARE:.0%}Y_t",
+                ],
+            }
+        )
+
+        show_table(model_df, decimals=3)
+
+        param_df = pd.DataFrame(
+            {
+                "Tham số": [
+                    "K0",
+                    "D0",
+                    "AI0",
+                    "H0",
+                    "L0",
+                    "α",
+                    "β",
+                    "γ",
+                    "δ",
+                    "θ",
+                    "A0 hiệu chỉnh",
+                ],
+                "Giá trị": [
+                    K0,
+                    D0,
+                    AI0,
+                    H0,
+                    L0,
+                    ALPHA,
+                    BETA_L,
+                    GAMMA,
+                    DELTA,
+                    THETA,
+                    A0,
+                ],
+            }
+        )
+
+        st.subheader("Tham số mô hình")
+        show_table(param_df, decimals=4)
+
+        st.subheader("Callback SLSQP")
+        cb = opt_res["callback"]
+
+        if len(cb) > 0:
+            show_table(cb.tail(15), decimals=5)
+
+            fig_cb = px.line(
+                cb,
+                x="Iteration",
+                y="Welfare",
+                markers=True,
+                title="Quỹ đạo hội tụ của welfare trong callback",
+            )
+            fig_cb.update_traces(
+                line=dict(color=BRAND, width=4),
+                marker=dict(color=BRAND, size=8),
+            )
+            fig_cb.update_layout(xaxis_title="Iteration", yaxis_title="Welfare")
+            style_base_fig(fig_cb, height=390)
+            st.plotly_chart(fig_cb, use_container_width=True)
+        else:
+            st.info("SLSQP hội tụ rất nhanh nên callback có ít quan sát.")
+
+        st.success(
+            "Mô hình đã được giải bằng SLSQP. Biến quyết định là quỹ đạo đầu tư vào K, D, AI và H trong giai đoạn 2026-2035."
+        )
+
+    # =====================================================
+    # 8.3.2
+    # =====================================================
+    with tabs[1]:
+        st.header("8.3.2. Quỹ đạo tối ưu của K, D, AI, H, Y và C")
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Y 2026", f"{path_opt['Y'].iloc[0]:,.1f}")
+        c2.metric("Y 2035", f"{path_opt['Y'].iloc[-1]:,.1f}")
+        c3.metric("C bình quân", f"{path_opt['C'].mean():,.1f}")
+
+        st.subheader("Bảng quỹ đạo tối ưu")
+        show_table(path_opt, decimals=3)
+
+        st.subheader("Trạng thái cuối kỳ")
+        show_table(terminal_state_table(opt_res["sim"]), decimals=3)
+
+        index_df = build_index_state_df(opt_res["sim"])
+        index_long = index_df.melt(
+            id_vars="Năm",
+            value_vars=["K", "D", "AI", "H"],
+            var_name="Biến trạng thái",
+            value_name="Chỉ số 2026=100",
+        )
+
+        fig_state = px.line(
+            index_long,
+            x="Năm",
+            y="Chỉ số 2026=100",
+            color="Biến trạng thái",
+            markers=True,
+            title="Quỹ đạo K, D, AI, H - chuẩn hóa 2026 = 100",
+            color_discrete_map=MULTI_COLORS,
+        )
+        fig_state.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig_state.update_layout(xaxis_title="Năm", yaxis_title="Chỉ số")
+        style_base_fig(fig_state, height=470)
+        st.plotly_chart(fig_state, use_container_width=True)
+
+        yc_long = path_opt[["Năm", "Y", "C"]].melt(
+            id_vars="Năm",
+            value_vars=["Y", "C"],
+            var_name="Biến",
+            value_name="Giá trị",
+        )
+
+        fig_yc = px.line(
+            yc_long,
+            x="Năm",
+            y="Giá trị",
+            color="Biến",
+            markers=True,
+            title="Quỹ đạo GDP Y và tiêu dùng C",
+            color_discrete_map=MULTI_COLORS,
+        )
+        fig_yc.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig_yc.update_layout(xaxis_title="Năm", yaxis_title="Nghìn tỷ VND")
+        style_base_fig(fig_yc, height=470)
+        st.plotly_chart(fig_yc, use_container_width=True)
+
+        invest_long = path_opt[["Năm", "I_K", "I_D", "I_AI", "I_H"]].rename(
+            columns={
+                "I_K": "K",
+                "I_D": "D",
+                "I_AI": "AI",
+                "I_H": "H",
+            }
+        ).melt(
+            id_vars="Năm",
+            value_vars=["K", "D", "AI", "H"],
+            var_name="Hạng mục đầu tư",
+            value_name="Đầu tư",
+        )
+
+        fig_inv = px.bar(
+            invest_long,
+            x="Năm",
+            y="Đầu tư",
+            color="Hạng mục đầu tư",
+            title="Phân bổ đầu tư tối ưu theo năm",
+            color_discrete_map=MULTI_COLORS,
+        )
+        fig_inv.update_traces(marker_line_color="white", marker_line_width=1)
+        fig_inv.update_layout(barmode="stack", xaxis_title="Năm", yaxis_title="Nghìn tỷ VND")
+        style_base_fig(fig_inv, height=470)
+        st.plotly_chart(fig_inv, use_container_width=True)
+
+        st.success(
+            "Quỹ đạo tối ưu cho thấy đầu tư được phân bổ động theo thời gian, không cố định đều giữa các năm."
+        )
+
+    # =====================================================
+    # 8.3.3
+    # =====================================================
+    with tabs[2]:
+        st.header("8.3.3. Cú sốc năm 2028: Y giảm 8% so với kế hoạch")
+
+        shock_table = compare_shock_table(opt_res["sim"], shock_res["sim"])
+
+        c1, c2, c3 = st.columns(3)
+        y2028_base = shock_table.loc[shock_table["Năm"] == 2028, "Y kế hoạch"].iloc[0]
+        y2028_shock = shock_table.loc[shock_table["Năm"] == 2028, "Y có cú sốc"].iloc[0]
+
+        c1.metric("Y 2028 kế hoạch", f"{y2028_base:,.1f}")
+        c2.metric("Y 2028 cú sốc", f"{y2028_shock:,.1f}")
+        c3.metric("Welfare thay đổi", f"{shock_res['welfare'] - opt_res['welfare']:.3f}")
+
+        show_table(shock_table, decimals=3)
+
+        y_compare = shock_table[["Năm", "Y kế hoạch", "Y có cú sốc"]].melt(
+            id_vars="Năm",
+            value_vars=["Y kế hoạch", "Y có cú sốc"],
+            var_name="Kịch bản",
+            value_name="Y",
         )
 
         fig_y = px.line(
-            both,
+            y_compare,
             x="Năm",
-            y="Y thực sau cú sốc",
+            y="Y",
             color="Kịch bản",
             markers=True,
-            title="So sánh sản lượng thực tế giữa hai kịch bản"
+            title="So sánh quỹ đạo GDP khi có cú sốc 2028",
+            color_discrete_map={
+                "Y kế hoạch": "#053151",
+                "Y có cú sốc": "#E76F51",
+            },
         )
+        fig_y.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig_y.update_layout(xaxis_title="Năm", yaxis_title="Y")
+        style_base_fig(fig_y, height=470)
         st.plotly_chart(fig_y, use_container_width=True)
 
-        fig_c = px.line(
-            both,
-            x="Năm",
-            y="C",
-            color="Kịch bản",
-            markers=True,
-            title="So sánh tiêu dùng C giữa hai kịch bản"
-        )
-        st.plotly_chart(fig_c, use_container_width=True)
-
-        inv_compare = both[[
-            "Năm", "Kịch bản", "I_K", "I_D", "I_AI", "I_H"
-        ]].melt(
-            id_vars=["Năm", "Kịch bản"],
-            value_vars=["I_K", "I_D", "I_AI", "I_H"],
-            var_name="Hạng mục",
-            value_name="Đầu tư"
+        inv_compare = shock_table[["Năm", "Đầu tư kế hoạch", "Đầu tư có cú sốc"]].melt(
+            id_vars="Năm",
+            value_vars=["Đầu tư kế hoạch", "Đầu tư có cú sốc"],
+            var_name="Kịch bản",
+            value_name="Đầu tư",
         )
 
-        fig_inv = px.line(
+        fig_inv = px.bar(
             inv_compare,
             x="Năm",
             y="Đầu tư",
-            color="Hạng mục",
-            line_dash="Kịch bản",
-            markers=True,
-            title="Điều chỉnh phân bổ đầu tư sau cú sốc 2028"
+            color="Kịch bản",
+            barmode="group",
+            title="Điều chỉnh tổng đầu tư khi có cú sốc",
+            color_discrete_map={
+                "Đầu tư kế hoạch": "#053151",
+                "Đầu tư có cú sốc": "#E76F51",
+            },
         )
+        fig_inv.update_traces(marker_line_color="white", marker_line_width=1)
+        fig_inv.update_layout(xaxis_title="Năm", yaxis_title="Nghìn tỷ VND")
+        style_base_fig(fig_inv, height=470)
         st.plotly_chart(fig_inv, use_container_width=True)
 
-        st.markdown("### Nhận xét")
+        st.subheader("Điều chỉnh đầu tư sau năm 2028")
+        adjust_df = investment_adjustment_after_shock(opt_res["sim"], shock_res["sim"])
+        show_table(adjust_df, decimals=3)
 
-        st.warning(
-            "Cú sốc 2028 làm giảm sản lượng và tiêu dùng trong năm bị sốc, đồng thời làm giảm quy mô nguồn lực khả dụng cho đầu tư. "
-            "Trong các năm sau, mô hình thường có xu hướng tái phân bổ để bảo vệ các biến tích lũy dài hạn, đặc biệt là K, AI hoặc H, "
-            "tùy theo ràng buộc cuối kỳ đang đặt ở sidebar."
+        fig_adjust = px.bar(
+            adjust_df,
+            x="Hạng mục",
+            y="Chênh lệch",
+            text=adjust_df["Chênh lệch"].round(1),
+            title="Chênh lệch đầu tư sau cú sốc theo hạng mục",
+        )
+        fig_adjust.update_traces(
+            marker_color=BRAND,
+            textposition="outside",
+            textfont=dict(color=BRAND),
+        )
+        fig_adjust.update_layout(xaxis_title="Hạng mục", yaxis_title="Chênh lệch đầu tư")
+        style_base_fig(fig_adjust, height=420)
+        st.plotly_chart(fig_adjust, use_container_width=True)
+
+        st.success(
+            "Sau cú sốc 2028, mô hình tái phân bổ đầu tư để cân bằng giữa phục hồi sản lượng và duy trì tiêu dùng."
         )
 
     # =====================================================
-    # TAB 5 — SO SÁNH CHIẾN LƯỢC
+    # 8.3.4
     # =====================================================
+    with tabs[3]:
+        st.header("8.3.4. So sánh chiến lược: trải đều và front-load")
 
-    with tab5:
-        st.header("Câu 8.3.4 — So sánh đầu tư trải đều và front-load")
+        strategy_df = strategy_compare_table(opt_res, even_res, front_res)
 
-        even = simulate_fixed_strategy(
-            "even",
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
+        best_strategy = strategy_df.iloc[0]["Chiến lược"]
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Chiến lược tốt nhất", best_strategy)
+        c2.metric("Welfare cao nhất", f"{strategy_df.iloc[0]['Welfare tổng']:.3f}")
+        c3.metric("Terminal Y cao nhất", f"{strategy_df['Terminal Y'].max():,.1f}")
+
+        show_table(strategy_df, decimals=3)
+
+        fig = px.bar(
+            strategy_df,
+            x="Chiến lược",
+            y="Welfare tổng",
+            color="Chiến lược",
+            text=strategy_df["Welfare tổng"].round(3),
+            title="So sánh welfare tổng giữa các chiến lược",
+            color_discrete_map=MULTI_COLORS,
         )
-
-        front = simulate_fixed_strategy(
-            "front_load",
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
-        )
-
-        human = simulate_fixed_strategy(
-            "human_first",
-            rho=rho,
-            g_A=g_A,
-            g_L=g_L,
-            inv_rate_max=inv_rate_max,
-            shock_2028=False,
-            terminal_weight=terminal_weight,
-        )
+        fig.update_traces(textposition="outside", marker_line_color="white", marker_line_width=1)
+        fig.update_layout(xaxis_title="Chiến lược", yaxis_title="Welfare tổng")
+        style_base_fig(fig, height=430)
+        st.plotly_chart(fig, use_container_width=True)
 
         rows = []
 
-        for label, res in [
-            ("Đầu tư trải đều", even),
-            ("Front-load", front),
-            ("Ưu tiên nhân lực số", human)
+        for name, res in [
+            ("Tối ưu SLSQP", opt_res),
+            ("Đầu tư trải đều", even_res),
+            ("Đầu tư front-load", front_res),
         ]:
-            traj = res["traj"]
-            terminal = res["terminal"]
+            temp = path_table(res["sim"])[["Năm", "Y", "C", "Tổng đầu tư"]].copy()
+            temp["Chiến lược"] = name
+            rows.append(temp)
 
-            rows.append({
-                "Chiến lược": label,
-                "Welfare": terminal["Welfare"],
-                "Y terminal": terminal["Y_terminal"],
-                "Y 2035": traj["Y kế hoạch"].iloc[-1],
-                "C 2035": traj["C"].iloc[-1],
-                "D 2035": traj["D"].iloc[-1],
-                "AI 2035": traj["AI"].iloc[-1],
-                "H 2035": traj["H"].iloc[-1],
-                "Tổng đầu tư 2026-2035": traj["Tổng đầu tư"].sum(),
-            })
+        compare_paths = pd.concat(rows, ignore_index=True)
 
-        compare_df = pd.DataFrame(rows).sort_values("Welfare", ascending=False)
-
-        st.dataframe(compare_df.round(4), use_container_width=True)
-
-        c1, c2 = st.columns(2)
-        c1.metric("Chiến lược welfare cao nhất", compare_df.iloc[0]["Chiến lược"])
-        c2.metric("Welfare cao nhất", f"{compare_df.iloc[0]['Welfare']:,.4f}")
-
-        strategy_trajs = []
-
-        for label, res in [
-            ("Trải đều", even),
-            ("Front-load", front),
-            ("Nhân lực số", human)
-        ]:
-            temp = res["traj"].copy()
-            temp["Chiến lược"] = label
-            strategy_trajs.append(temp)
-
-        all_strategy = pd.concat(strategy_trajs, ignore_index=True)
+        y_strategy = compare_paths[["Năm", "Y", "Chiến lược"]]
 
         fig_y = px.line(
-            all_strategy,
+            y_strategy,
             x="Năm",
-            y="Y kế hoạch",
+            y="Y",
             color="Chiến lược",
             markers=True,
-            title="So sánh quỹ đạo Y giữa các chiến lược"
+            title="So sánh quỹ đạo GDP theo chiến lược",
+            color_discrete_map=MULTI_COLORS,
         )
+        fig_y.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig_y.update_layout(xaxis_title="Năm", yaxis_title="Y")
+        style_base_fig(fig_y, height=470)
         st.plotly_chart(fig_y, use_container_width=True)
 
-        fig_c = px.line(
-            all_strategy,
+        inv_strategy = compare_paths[["Năm", "Tổng đầu tư", "Chiến lược"]]
+
+        fig_inv_strategy = px.line(
+            inv_strategy,
             x="Năm",
-            y="C",
+            y="Tổng đầu tư",
             color="Chiến lược",
             markers=True,
-            title="So sánh quỹ đạo tiêu dùng C giữa các chiến lược"
+            title="So sánh quỹ đạo tổng đầu tư",
+            color_discrete_map=MULTI_COLORS,
         )
-        st.plotly_chart(fig_c, use_container_width=True)
+        fig_inv_strategy.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig_inv_strategy.update_layout(xaxis_title="Năm", yaxis_title="Tổng đầu tư")
+        style_base_fig(fig_inv_strategy, height=470)
+        st.plotly_chart(fig_inv_strategy, use_container_width=True)
 
-        st.markdown("### Giải thích kết quả")
+        st.success(
+            f"Chiến lược có welfare tổng cao nhất là {best_strategy}. "
+            "Front-load thường có lợi khi đầu tư sớm giúp tích lũy năng lực sản xuất cho nhiều năm sau."
+        )
 
-        if compare_df.iloc[0]["Chiến lược"] == "Front-load":
-            st.success(
-                "Front-load có welfare cao hơn vì đầu tư mạnh ở 3 năm đầu giúp các trạng thái K, D, AI, H tăng sớm hơn, "
-                "từ đó tạo hiệu ứng tích lũy cho các năm sau. Đây là logic quan trọng của tối ưu động."
-            )
-        elif compare_df.iloc[0]["Chiến lược"] == "Đầu tư trải đều":
-            st.success(
-                "Đầu tư trải đều có welfare cao hơn trong cấu hình hiện tại vì chiến lược này tránh hy sinh tiêu dùng quá mạnh ở giai đoạn đầu, "
-                "đồng thời vẫn bảo đảm tích lũy dần các trạng thái K, D, AI, H."
-            )
-        else:
-            st.success(
-                "Chiến lược ưu tiên nhân lực số có welfare cao hơn trong cấu hình hiện tại, cho thấy H có vai trò quan trọng trong hấp thụ công nghệ, "
-                "giảm rủi ro đầu tư AI quá sớm khi nền tảng nhân lực chưa đủ mạnh."
-            )
+    # =====================================================
+    # 8.4
+    # =====================================================
+    with tabs[4]:
+        st.header("8.4. Thảo luận chính sách")
+
+        total_inv = path_opt["Tổng đầu tư"].values
+        first3_share = total_inv[:3].sum() / total_inv.sum() * 100
+
+        ai_h_ratio = path_opt["I_AI"].sum() / path_opt["I_H"].sum() if path_opt["I_H"].sum() > 0 else np.nan
+
+        st.markdown("### a) Quỹ đạo tối ưu front-loaded hay back-loaded?")
+
+        st.success(
+            f"Tỷ trọng đầu tư trong 3 năm đầu chiếm khoảng **{first3_share:.2f}%** tổng đầu tư giai đoạn 2026-2035."
+        )
+
+        st.markdown(
+            """
+            Nếu tỷ trọng đầu tư tập trung lớn ở các năm đầu, quỹ đạo có tính **front-loaded**.
+            Điều này xuất hiện vì đầu tư sớm vào K, D, AI và H tạo ra năng lực sản xuất cho nhiều năm sau.
+            Với hệ số chiết khấu ρ = 0,97, Chính phủ vẫn đánh giá cao lợi ích tương lai,
+            nên mô hình có xu hướng chấp nhận giảm một phần tiêu dùng hiện tại để đổi lấy sản lượng cao hơn trong tương lai.
+
+            Ngược lại, nếu đầu tư dồn về cuối kỳ, đó là chiến lược back-loaded.
+            Chiến lược này giữ tiêu dùng ngắn hạn cao hơn nhưng làm chậm tích lũy năng lực số,
+            thường kém hấp dẫn khi lợi ích công nghệ có tính tích lũy.
+            """
+        )
+
+        st.markdown("### b) Tỷ lệ đầu tư AI/H theo thời gian có ổn định không?")
+
+        st.success(
+            f"Tỷ lệ tổng đầu tư AI/H trong nghiệm tối ưu khoảng **{ai_h_ratio:.3f}**."
+        )
+
+        st.markdown(
+            """
+            Tỷ lệ AI/H thường không hoàn toàn ổn định qua thời gian vì hai loại đầu tư có vai trò khác nhau.
+            AI giúp tăng năng lực công nghệ trực tiếp, nhưng nhân lực số H quyết định khả năng hấp thụ và vận hành AI.
+
+            Nếu mô hình tăng H trước hoặc tăng H đồng thời với AI, hàm ý chính sách là đào tạo nhân lực không thể đi sau quá xa.
+            Đầu tư AI mà thiếu kỹ sư, chuyên gia dữ liệu, đội ngũ vận hành và quản trị công nghệ sẽ làm hiệu quả biên của AI thấp đi.
+
+            Vì vậy, chính sách hợp lý là **đào tạo nhân lực số đi trước một bước hoặc ít nhất song hành với đầu tư AI**.
+            """
+        )
+
+        st.markdown("### c) Nếu ρ = 0,90 thì kết quả thay đổi thế nào?")
+
+        st.markdown(
+            """
+            Hệ số chiết khấu ρ = 0,97 thể hiện Chính phủ quan tâm khá nhiều đến dài hạn.
+            Khi giảm xuống ρ = 0,90, mô hình sẽ coi lợi ích tương lai kém quan trọng hơn.
+            Khi đó, nghiệm tối ưu thường có xu hướng:
+
+            - Giữ tiêu dùng hiện tại cao hơn.
+            - Giảm đầu tư dài hạn vào các tài sản có độ trễ như AI, R&D, dữ liệu và nhân lực.
+            - Ưu tiên các khoản có tác động nhanh hơn.
+            - Làm terminal Y thấp hơn so với trường hợp ρ cao.
+
+            Đây là một cách giải thích vì sao các chính phủ có chu kỳ chính trị ngắn thường dễ **dưới đầu tư vào R&D và công nghệ nền tảng**.
+            Lợi ích của R&D xuất hiện chậm, trong khi chi phí ngân sách xuất hiện ngay.
+            Nếu hệ thống đánh giá chính sách thiên về ngắn hạn, các dự án dài hạn dễ bị giảm ưu tiên.
+            """
+        )
+
+        st.info(
+            "Kết luận: mô hình động cho thấy chính sách chuyển đổi số không chỉ là chọn mức đầu tư, "
+            "mà còn là chọn thời điểm đầu tư. Đầu tư sớm có thể làm giảm tiêu dùng ngắn hạn nhưng tạo lợi ích tích lũy dài hạn."
+        )
 
 
 def run():
