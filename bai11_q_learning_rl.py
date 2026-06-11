@@ -1,4 +1,4 @@
-# bai11_q_learning_policy.py
+# bai11_q_learning_rl.py
 
 import numpy as np
 import pandas as pd
