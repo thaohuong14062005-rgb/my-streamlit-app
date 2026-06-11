@@ -7,3 +7,4 @@ cvxpy
 scipy
 deap
 gymnasium
+pymoo
