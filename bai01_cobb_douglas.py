@@ -10,6 +10,17 @@ import plotly.graph_objects as go
 
 BRAND = "#053151"
 
+MULTI_COLORS = {
+    "K (%)": "#053151",
+    "L (%)": "#E76F51",
+    "D (%)": "#2A9D8F",
+    "AI (%)": "#F4A261",
+    "H (%)": "#8E44AD",
+    "TFP (%)": "#457B9D",
+    "Thực tế": "#053151",
+    "Dự báo": "#E76F51",
+}
+
 
 # =========================================================
 # BÀI 1 — HÀM SẢN XUẤT COBB-DOUGLAS MỞ RỘNG
@@ -242,8 +253,8 @@ def tfp_trend(df):
 
 def make_styled_table(df, decimals=3):
     """
-    Bảng trắng, chữ màu BRAND, header chỉ bôi đậm chữ.
-    Không dùng HTML thủ công để tránh lỗi hiển thị raw HTML.
+    Bảng nền trắng, chữ màu BRAND, có kẻ line.
+    Header chỉ bôi đậm chữ, không dùng nền màu.
     """
     show_df = df.copy()
 
@@ -345,9 +356,6 @@ def render():
     st.title("Bài 1. Hàm sản xuất Cobb-Douglas mở rộng")
     st.caption("Ước lượng TFP, kiểm định dự báo, phân rã tăng trưởng và mô phỏng GDP 2030")
 
-    # =========================
-    # Sidebar
-    # =========================
     st.sidebar.header("⚙️ Bài 1")
 
     st.sidebar.markdown("### Hệ số")
@@ -368,9 +376,6 @@ def render():
     gL = st.sidebar.slider("Tăng L/năm (%)", -2.0, 10.0, 6.0, 0.1) / 100
     gTFP = st.sidebar.slider("Tăng TFP/năm (%)", -2.0, 5.0, 1.2, 0.1) / 100
 
-    # =========================
-    # Data + model
-    # =========================
     raw_df = load_data()
     model_df, A_mean, mape = compute_model(raw_df, alpha, beta, gamma, delta, theta)
 
@@ -505,8 +510,8 @@ def render():
                 y=model_df["Y_hat"],
                 mode="lines+markers",
                 name="GDP dự báo",
-                line=dict(color="#7a8fa3", width=4, dash="dash"),
-                marker=dict(color="#7a8fa3", size=9),
+                line=dict(color="#E76F51", width=4, dash="dash"),
+                marker=dict(color="#E76F51", size=9),
             )
         )
         fig.update_layout(
@@ -586,19 +591,18 @@ def render():
             y="Đóng góp",
             color="Nguồn",
             title="Phân rã theo giai đoạn",
-            color_discrete_sequence=[
-                BRAND,
-                "#2d5d7b",
-                "#4e7d99",
-                "#6b95ae",
-                "#88acc2",
-                "#a7c1d4",
-            ],
+            color_discrete_map=MULTI_COLORS,
+        )
+        fig_detail.update_traces(
+            marker_line_color="white",
+            marker_line_width=1,
+            hovertemplate="<b>%{x}</b><br>%{legendgroup}: %{y:.2f} điểm %<extra></extra>",
         )
         fig_detail.update_layout(
             barmode="relative",
             xaxis_title="Giai đoạn",
             yaxis_title="Đóng góp (% điểm)",
+            legend_title_text="Nguồn đóng góp",
         )
         style_base_fig(fig_detail, height=430)
         st.plotly_chart(fig_detail, use_container_width=True)
@@ -647,10 +651,7 @@ def render():
             color="Loại",
             markers=True,
             title="GDP thực tế và dự báo đến 2030",
-            color_discrete_map={
-                "Thực tế": BRAND,
-                "Dự báo": "#7a8fa3",
-            },
+            color_discrete_map=MULTI_COLORS,
         )
         fig.update_traces(line=dict(width=4), marker=dict(size=9))
         fig.update_layout(yaxis_title="GDP, nghìn tỷ VND")
