@@ -18,11 +18,10 @@ except Exception:
 # CẤU HÌNH TRANG
 # =========================
 st.set_page_config(
-    page_title="AIDEOM-VN",
-    page_icon="🇻🇳",
-    layout="wide"
+    page_title="VN AIDEOM-VN",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-
 
 # =========================
 # MÀU CHỦ ĐẠO
