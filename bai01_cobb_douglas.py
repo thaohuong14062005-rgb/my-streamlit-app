@@ -418,11 +418,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "1.4.1 TFP",
-            "1.4.2 MAPE",
-            "1.4.3 Phân rã",
-            "1.4.4 Dự báo 2030",
-            "1.5 Chính sách",
+            "Kết quả TFP",
+            "GDP dự báo và MAPE",
+            "Phân rã tăng trưởng",
+            "Dự báo 2030",
+            "Thảo luận chính sách",
         ]
     )
 
@@ -430,7 +430,7 @@ def render():
     # 1.4.1
     # =====================================================
     with tabs[0]:
-        st.header("1.4.1. Kết quả TFP")
+       
 
         c1, c2, c3 = st.columns(3)
         c1.metric("A_t 2020", f"{model_df['A_t'].iloc[0]:,.2f}")
@@ -474,7 +474,7 @@ def render():
     # 1.4.2
     # =====================================================
     with tabs[1]:
-        st.header("1.4.2. GDP dự báo và MAPE")
+       
 
         c1, c2, c3 = st.columns(3)
         c1.metric("A trung bình", f"{A_mean:,.2f}")
@@ -549,7 +549,7 @@ def render():
     # 1.4.3
     # =====================================================
     with tabs[2]:
-        st.header("1.4.3. Phân rã tăng trưởng")
+       
 
         c1, c2, c3 = st.columns(3)
         c1.metric("GDP tăng trưởng TB", f"{avg_growth:.2f}%")
@@ -619,7 +619,7 @@ def render():
     # 1.4.4
     # =====================================================
     with tabs[3]:
-        st.header("1.4.4. Dự báo GDP 2030")
+        
 
         c1, c2, c3 = st.columns(3)
         c1.metric("GDP 2025", f"{y_2025:,.1f}")
@@ -690,7 +690,7 @@ def render():
     # 1.5
     # =====================================================
     with tabs[4]:
-        st.header("1.5. Thảo luận chính sách")
+        
 
         st.markdown("### a) TFP của Việt Nam có xu hướng tăng hay giảm?")
 
