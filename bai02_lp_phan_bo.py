@@ -369,11 +369,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "2.4.1 SciPy",
-            "2.4.2 PuLP & Shadow price",
-            "2.4.3 Độ nhạy ngân sách",
-            "2.4.4 Ưu tiên x3",
-            "2.5 Chính sách",
+            "Phân bổ ngân sách tối ưu",
+            "Shadow price",
+            "Độ nhạy ngân sách",
+            "Ưu tiên nhân lực số x3",
+            "Thảo luận chính sách",
         ]
     )
 
@@ -381,7 +381,7 @@ def render():
     # 2.4.1
     # =====================================================
     with tabs[0]:
-        st.header("2.4.1. Giải bằng scipy.optimize.linprog")
+    
 
         show_table(alpha_labels, decimals=3)
 
@@ -429,7 +429,7 @@ def render():
     # 2.4.2
     # =====================================================
     with tabs[1]:
-        st.header("2.4.2. Giải bằng PuLP và shadow price")
+       
 
         if res_pulp["success"]:
             sol_df, summary_df = solution_table(res_pulp["x"], res_pulp["objective"])
@@ -487,7 +487,7 @@ def render():
     # 2.4.3
     # =====================================================
     with tabs[2]:
-        st.header("2.4.3. Phân tích độ nhạy ngân sách")
+     
 
         budgets_required = [100, 120, 140]
         sens_required = sensitivity_budget_curve(budgets_required)
@@ -561,7 +561,7 @@ def render():
     # 2.4.4
     # =====================================================
     with tabs[3]:
-        st.header("2.4.4. Ưu tiên nhân lực số x3")
+      
 
         x3_priority = st.slider(
             "Ràng buộc nhân lực số tối thiểu x3",
@@ -630,7 +630,7 @@ def render():
     # 2.5
     # =====================================================
     with tabs[4]:
-        st.header("2.5. Thảo luận chính sách")
+     
 
         if res_pulp["success"]:
             dual_df = res_pulp["duals"]
