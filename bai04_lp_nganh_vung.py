@@ -488,11 +488,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "4.4.1 PuLP",
-            "4.4.2 CVXPY",
-            "4.4.3 Heatmap",
-            "4.4.4 Chi phí công bằng",
-            "4.5 Chính sách",
+            "Mô hình PuLP và nghiệm tối ưu",
+            "PuLP và CVXPY",
+            "Phân bổ tối ưu",
+            "Chi phí công bằng",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -500,7 +500,7 @@ def render():
     # 4.4.1
     # =====================================================
     with tabs[0]:
-        st.header("4.4.1. Mô hình PuLP và nghiệm tối ưu")
+
 
         show_table(beta_table(), decimals=3)
 
@@ -556,7 +556,7 @@ def render():
     # 4.4.2
     # =====================================================
     with tabs[1]:
-        st.header("4.4.2. So sánh PuLP và CVXPY")
+     
 
         if not CVXPY_AVAILABLE:
             st.warning("Chưa cài CVXPY. Hãy thêm `cvxpy` vào requirements.txt để chạy phần này.")
@@ -621,7 +621,7 @@ def render():
     # 4.4.3
     # =====================================================
     with tabs[2]:
-        st.header("4.4.3. Heatmap phân bổ tối ưu")
+      
 
         if not pulp_res["success"]:
             st.warning("Chưa có nghiệm tối ưu để vẽ heatmap.")
@@ -680,7 +680,7 @@ def render():
     # 4.4.4
     # =====================================================
     with tabs[3]:
-        st.header("4.4.4. Chi phí kinh tế của công bằng vùng miền")
+        
 
         if not pulp_res["success"] or not pulp_no_fair["success"]:
             st.warning("Không đủ nghiệm để so sánh có/không có ràng buộc công bằng.")
@@ -794,7 +794,7 @@ def render():
     # 4.5
     # =====================================================
     with tabs[4]:
-        st.header("4.5. Thảo luận chính sách")
+       
 
         if pulp_res["success"] and pulp_no_fair["success"]:
             z_fair = pulp_res["objective"]
