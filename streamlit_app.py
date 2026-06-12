@@ -743,7 +743,7 @@ MODULE_ROUTES = {
         "bai05_mip_15_du_an",
         "bai5_mip_project_selection",
     ],
-    "Bài 6 — Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng TOPSIS 6 vùng": [
+    "Bài 6 — Xếp hạng TOPSIS 6 vùng": [
         "modules.bai6_topsis_ai_regions",
         "bai06_topsis_6_vung",
         "bai6_topsis_ai_regions",
