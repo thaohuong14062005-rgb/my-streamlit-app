@@ -650,7 +650,7 @@ def render():
 
     tabs = st.tabs(
         [
-            "Tổng quan AIDEOM-VN",
+            "Tổng quan ",
             "Đường kịch bản",
             "KPI năm 2030",
             "Cảnh báo rủi ro",
@@ -663,7 +663,7 @@ def render():
     # 12.1 + 12.2
     # =====================================================
     with tabs[0]:
-        st.header("12.1. Yêu cầu chức năng")
+   
 
         st.markdown(
             """
@@ -717,7 +717,7 @@ def render():
     # Đường kịch bản
     # =====================================================
     with tabs[1]:
-        st.header("Đường kịch bản 2026-2030")
+     
 
         metric_choice = st.selectbox(
             "Chọn chỉ tiêu để vẽ đường kịch bản",
@@ -767,7 +767,7 @@ def render():
     # KPI 2030
     # =====================================================
     with tabs[2]:
-        st.header("KPI năm 2030")
+       
 
         show_table(kpi_df, decimals=3)
 
@@ -832,7 +832,7 @@ def render():
     # Cảnh báo rủi ro
     # =====================================================
     with tabs[3]:
-        st.header("Cảnh báo rủi ro")
+    
 
         show_table(risk_df, decimals=3)
 
@@ -887,7 +887,7 @@ def render():
     # Thảo luận chính sách
     # =====================================================
     with tabs[4]:
-        st.header("Thảo luận chính sách")
+ 
 
         st.markdown("### 1. AIDEOM-VN tích hợp các bài trước như thế nào?")
 
