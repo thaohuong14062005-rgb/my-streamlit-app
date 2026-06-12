@@ -795,11 +795,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "10.5.1 Pyomo SP",
-            "10.5.2 EV & Deterministic",
-            "10.5.3 VSS & EVPI",
-            "10.5.4 Robust",
-            "10.6 Chính sách",
+            "Mô hình two-stage bằng Pyomo",
+            " EV & Deterministic",
+            " VSS & EVPI",
+            "Robust optimization: cực tiểu hóa regret xấu nhất",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -807,7 +807,7 @@ def render():
     # 10.5.1
     # =====================================================
     with tabs[0]:
-        st.header("10.5.1. Mô hình two-stage bằng Pyomo")
+
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Pyomo", "Có" if PYOMO_AVAILABLE else "Không")
@@ -865,7 +865,7 @@ def render():
     # 10.5.2
     # =====================================================
     with tabs[1]:
-        st.header("10.5.2. Deterministic scenario, EV và SP")
+     
 
         st.subheader("Bài toán xác định theo từng kịch bản")
         det_summary = deterministic_summary_table(det_results)
@@ -919,7 +919,7 @@ def render():
     # 10.5.3
     # =====================================================
     with tabs[2]:
-        st.header("10.5.3. Tính VSS và EVPI")
+   
 
         if not sp_res["success"]:
             st.error("Chưa có nghiệm SP để tính VSS và EVPI.")
@@ -970,7 +970,7 @@ def render():
     # 10.5.4
     # =====================================================
     with tabs[3]:
-        st.header("10.5.4. Robust optimization: cực tiểu hóa regret xấu nhất")
+    
 
         if not robust_res["success"]:
             st.error(robust_res["status"])
@@ -1016,7 +1016,7 @@ def render():
     # 10.6
     # =====================================================
     with tabs[4]:
-        st.header("10.6. Thảo luận chính sách")
+ 
 
         st.markdown("### a) SP đầu tư H nhiều hơn hay ít hơn so với lời giải xác định?")
 
