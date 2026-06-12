@@ -696,39 +696,39 @@ class InlineSidebarProxy:
 HOME_MENU = "Trang chủ"
 
 BASIC_MENUS = [
-    "Bài 1 — Cobb-Douglas + AI",
-    "Bài 2 — LP ngân sách số",
-    "Bài 3 — Priority 10 ngành",
-    "Bài 4 — LP ngành-vùng",
+    "Bài 1 — Hàm sản xuất mở rộng ",
+    "Bài 2 — Phân bổ ngân sách",
+    "Bài 3 — Ưu tiên ngành ",
+    "Bài 4 — Phân bổ theo vùng",
 ]
 
 MEDIUM_MENUS = [
-    "Bài 5 — MIP 15 dự án",
-    "Bài 6 — TOPSIS 6 vùng",
+    "Bài 5 — Lựa chọn dự án ",
+    "Bài 6 — Xếp hạng TOPSIS 6 vùng",
     "Bài 7 — NSGA-II Pareto",
     "Bài 8 — Động 2026-2035",
 ]
 
 ADVANCED_MENUS = [
     "Bài 9 — Lao động & AI",
-    "Bài 10 — Stochastic SP",
+    "Bài 10 — Quy hoạch ngẫu nhiên",
     "Bài 11 — Q-learning RL",
-    "Bài 12 — AIDEOM tích hợp",
+    "Bài 12 — Tổng hợp kịch bản ",
 ]
 
 
 MODULE_ROUTES = {
-    "Bài 1 — Cobb-Douglas + AI": [
+    "Bài 1 — Hàm sản xuất mở rộng ": [
         "modules.bai1_cobb_douglas",
         "bai01_cobb_douglas",
         "bai1_cobb_douglas",
     ],
-    "Bài 2 — LP ngân sách số": [
+    "Bài 2 — Phân bổ ngân sách": [
         "modules.bai2_lp_budget",
         "bai02_lp_phan_bo",
         "bai2_lp_budget",
     ],
-    "Bài 3 — Priority 10 ngành": [
+    "Bài 3 — Ưu tiên ngành ": [
         "modules.bai3_priority_sectors",
         "bai03_priority",
         "bai3_priority_sectors",
@@ -738,12 +738,12 @@ MODULE_ROUTES = {
         "bai04_lp_nganh_vung",
         "bai4_lp_region_budget",
     ],
-    "Bài 5 — MIP 15 dự án": [
+    "Bài 5 — Lựa chọn dự án ": [
         "modules.bai5_mip_project_selection",
         "bai05_mip_15_du_an",
         "bai5_mip_project_selection",
     ],
-    "Bài 6 — TOPSIS 6 vùng": [
+    "Bài 6 — Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng TOPSIS 6 vùng": [
         "modules.bai6_topsis_ai_regions",
         "bai06_topsis_6_vung",
         "bai6_topsis_ai_regions",
@@ -763,7 +763,7 @@ MODULE_ROUTES = {
         "bai09_lao_dong_ai",
         "bai9_ai_labor_market",
     ],
-    "Bài 10 — Stochastic SP": [
+    "Bài 10 — Quy hoạch ngẫu nhiên": [
         "modules.bai10_stochastic_programming",
         "bai10_stochastic_sp",
         "bai10_stochastic_programming",
@@ -773,7 +773,7 @@ MODULE_ROUTES = {
         "bai11_q_learning_rl",
         "bai11_qlearning_policy",
     ],
-    "Bài 12 — AIDEOM tích hợp": [
+    "Bài 12 — Tổng hợp kịch bản ": [
         "modules.bai12_aideom_vn_integrated",
         "bai12_aideom_vn",
         "bai12_aideom_vn_integrated",
@@ -950,8 +950,8 @@ def render_home():
     basic_cards = [
         ("Bài 1", "Cobb-Douglas mở rộng với AI và số hóa"),
         ("Bài 2", "LP phân bổ ngân sách số"),
-        ("Bài 3", "Priority 10 ngành"),
-        ("Bài 4", "LP ngành-vùng"),
+        ("Bài 3", "Ưu tiên ngành "),
+        ("Bài 4", "Phân bổ theo vùng"),
     ]
     for col, (title, desc) in zip([c1, c2, c3, c4], basic_cards):
         with col:
@@ -969,7 +969,7 @@ def render_home():
     c1, c2, c3, c4 = st.columns(4)
     medium_cards = [
         ("Bài 5", "MIP lựa chọn 15 dự án"),
-        ("Bài 6", "TOPSIS 6 vùng"),
+        ("Bài 6", "Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng TOPSIS 6 vùng"),
         ("Bài 7", "NSGA-II Pareto"),
         ("Bài 8", "Tối ưu động 2026-2035"),
     ]
