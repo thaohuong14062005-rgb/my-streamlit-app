@@ -512,16 +512,16 @@ def render():
 
     tabs = st.tabs(
         [
-            "7.4.1 NSGA-II",
-            "7.4.2 Pareto",
-            "7.4.3 TOPSIS",
-            "7.4.4 Chi phí cơ hội",
-            "7.5 Chính sách",
+            "Cài đặt bài toán bằng pymoo NSGA-II",
+            " Pareto",
+            "Chọn nghiệm thỏa hiệp bằng TOPSIS",
+            "Chi phí cơ hội",
+            "Thảo luận Chính sách",
         ]
     )
 
     with tabs[0]:
-        st.header("7.4.1. Cài đặt bài toán bằng pymoo NSGA-II")
+      
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Số biến", "24")
@@ -575,7 +575,7 @@ def render():
         )
 
     with tabs[1]:
-        st.header("7.4.2. Tập Pareto, scatter 3D và parallel coordinates")
+   
 
         c1, c2, c3 = st.columns(3)
         c1.metric("GDP gain cao nhất", f"{pareto_df['GDP gain'].max():,.1f}")
@@ -680,7 +680,7 @@ def render():
         )
 
     with tabs[3]:
-        st.header("7.4.4. Chi phí cơ hội của mục tiêu tăng trưởng")
+   
 
         compare_df = pd.DataFrame(
             {
@@ -741,7 +741,7 @@ def render():
         )
 
     with tabs[4]:
-        st.header("7.5. Thảo luận chính sách")
+ 
 
         inclusion_loss = cost_df.loc[
             cost_df["Chỉ tiêu"] == "Hi sinh bao trùm", "Tỷ lệ thay đổi (%)"
