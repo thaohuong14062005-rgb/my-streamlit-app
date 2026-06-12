@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 
 
-BRAND = "#053151"
+BRAND = "E58027"
 
 MULTI_COLORS = {
     "K (%)": "#053151",
