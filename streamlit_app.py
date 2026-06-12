@@ -733,7 +733,7 @@ MODULE_ROUTES = {
         "bai03_priority",
         "bai3_priority_sectors",
     ],
-    "Bài 4 — LP ngành-vùng": [
+    "Bài 4 — Phân bổ theo vùng": [
         "modules.bai4_lp_region_budget",
         "bai04_lp_nganh_vung",
         "bai4_lp_region_budget",
