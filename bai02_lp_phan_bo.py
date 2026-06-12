@@ -17,7 +17,24 @@ try:
 except Exception:
     PULP_AVAILABLE = False
 
+# ngay đầu module, trước hàm render()
+import pandas as pd
+from pathlib import Path
+import streamlit as st
 
+def load_csv_data(filename):
+    # Tìm file trong thư mục data/ tương đối với module
+    current_dir = Path(__file__).resolve().parent
+    path = current_dir / "data" / filename
+    if not path.exists():
+        st.error(f"Không tìm thấy file: {filename} trong thư mục data/")
+        return pd.DataFrame()  # trả về df trống để không crash
+    return pd.read_csv(path)
+
+# Gọi file data
+macro_df = load_csv_data("vietnam_macro_2020_2025.csv")
+regions_df = load_csv_data("vietnam_regions_2024.csv")
+sectors_df = load_csv_data("vietnam_sectors_2024.csv")
 BRAND = "#053151"
 
 MULTI_COLORS = {
