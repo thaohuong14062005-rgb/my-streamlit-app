@@ -456,11 +456,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "5.4.1 PuLP/CBC",
-            "5.4.2 Ngân sách 100.000",
+            "Lựa chọn dự án",
+            "Ngân sách 100.000",
             "5.4.3 Bắt buộc P1 & P2",
-            "5.4.4 Rủi ro dự án",
-            "5.5 Chính sách",
+            "Rủi ro dự án",
+            "Thảo luận chính sách",
         ]
     )
 
@@ -468,7 +468,7 @@ def render():
     # 5.4.1
     # =====================================================
     with tabs[0]:
-        st.header("5.4.1. Giải bài toán bằng PuLP/CBC")
+      
 
         st.subheader("Dữ liệu dự án")
         show_table(project_data(), decimals=3)
@@ -507,7 +507,7 @@ def render():
     # 5.4.2
     # =====================================================
     with tabs[1]:
-        st.header("5.4.2. Nới ngân sách tổng lên 100.000 tỷ")
+        
 
         compare_df = compare_solutions(
             {
@@ -597,7 +597,7 @@ def render():
     # 5.4.3
     # =====================================================
     with tabs[2]:
-        st.header("5.4.3. Quốc hội yêu cầu phải có cả P1 và P2")
+     
 
         compare_df = compare_solutions(
             {
@@ -641,7 +641,7 @@ def render():
     # 5.4.4
     # =====================================================
     with tabs[3]:
-        st.header("5.4.4. Mở rộng: thêm rủi ro dự án")
+       
 
         risk_df = project_data()[["Dự án", "Tên dự án", "Nhóm", "Lợi ích B", "p_i", "Lợi ích kỳ vọng"]].copy()
         show_table(risk_df, decimals=3)
@@ -690,7 +690,7 @@ def render():
     # 5.5
     # =====================================================
     with tabs[4]:
-        st.header("5.5. Thảo luận chính sách")
+     
 
         p15_selected = base_res["success"] and 15 in base_res["selected"]
 
