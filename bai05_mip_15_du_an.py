@@ -458,7 +458,7 @@ def render():
         [
             "Lựa chọn dự án",
             "Ngân sách 100.000",
-            "5.4.3 Bắt buộc P1 & P2",
+            "Bắt buộc P1 & P2",
             "Rủi ro dự án",
             "Thảo luận chính sách",
         ]
