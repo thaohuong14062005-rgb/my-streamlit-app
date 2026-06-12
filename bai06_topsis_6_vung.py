@@ -447,11 +447,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "6.4.1 TOPSIS",
-            "6.4.2 Entropy",
-            "6.4.3 Độ nhạy AI",
-            "6.4.4 AHP",
-            "6.5 Chính sách",
+            "TOPSIS với trọng số chuyên gia",
+            "TOPSIS với trọng số Entropy",
+            "Độ nhạy AI",
+            "AHP",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -459,7 +459,7 @@ def render():
     # 6.4.1
     # =====================================================
     with tabs[0]:
-        st.header("6.4.1. TOPSIS với trọng số chuyên gia")
+     
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Số vùng", f"{len(df)}")
@@ -527,7 +527,7 @@ def render():
     # 6.4.2
     # =====================================================
     with tabs[1]:
-        st.header("6.4.2. TOPSIS với trọng số Entropy")
+        
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Top 1 chuyên gia", expert_rank.iloc[0]["Vùng"])
@@ -582,7 +582,7 @@ def render():
     # 6.4.3
     # =====================================================
     with tabs[2]:
-        st.header("6.4.3. Độ nhạy theo trọng số AI readiness")
+        
 
         top3_rows = []
 
@@ -661,7 +661,7 @@ def render():
     # 6.4.4
     # =====================================================
     with tabs[3]:
-        st.header("6.4.4. AHP đơn giản và so sánh với TOPSIS")
+  
 
         c1, c2, c3 = st.columns(3)
         c1.metric("λ max", f"{lambda_max:.3f}")
@@ -721,7 +721,7 @@ def render():
     # 6.5
     # =====================================================
     with tabs[4]:
-        st.header("6.5. Thảo luận chính sách")
+       
 
         top3_text = ", ".join(top3_expert)
         entropy_top = entropy_rank.iloc[0]["Vùng"]
