@@ -598,11 +598,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "8.3.1 SLSQP",
-            "8.3.2 Quỹ đạo tối ưu",
-            "8.3.3 Cú sốc 2028",
-            "8.3.4 So sánh chiến lược",
-            "8.4 Chính sách",
+            "Cài đặt mô hình bằng SLSQP",
+            "Quỹ đạo tối ưu",
+            "Cú sốc 2028",
+            " So sánh chiến lược",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -610,7 +610,7 @@ def render():
     # 8.3.1
     # =====================================================
     with tabs[0]:
-        st.header("8.3.1. Cài đặt mô hình bằng scipy.optimize.minimize - SLSQP")
+
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Trạng thái", "Optimal" if opt_res["success"] else "Kiểm tra")
@@ -712,7 +712,7 @@ def render():
     # 8.3.2
     # =====================================================
     with tabs[1]:
-        st.header("8.3.2. Quỹ đạo tối ưu của K, D, AI, H, Y và C")
+   
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Y 2026", f"{path_opt['Y'].iloc[0]:,.1f}")
@@ -803,7 +803,7 @@ def render():
     # 8.3.3
     # =====================================================
     with tabs[2]:
-        st.header("8.3.3. Cú sốc năm 2028: Y giảm 8% so với kế hoạch")
+
 
         shock_table = compare_shock_table(opt_res["sim"], shock_res["sim"])
 
@@ -893,7 +893,7 @@ def render():
     # 8.3.4
     # =====================================================
     with tabs[3]:
-        st.header("8.3.4. So sánh chiến lược: trải đều và front-load")
+
 
         strategy_df = strategy_compare_table(opt_res, even_res, front_res)
         best_strategy = strategy_df.iloc[0]["Chiến lược"]
@@ -973,7 +973,7 @@ def render():
     # 8.4
     # =====================================================
     with tabs[4]:
-        st.header("8.4. Thảo luận chính sách")
+      
 
         total_inv = path_opt["Tổng đầu tư"].values
         first3_share = total_inv[:3].sum() / total_inv.sum() * 100 if total_inv.sum() > 0 else np.nan
