@@ -969,7 +969,7 @@ def render_home():
     c1, c2, c3, c4 = st.columns(4)
     medium_cards = [
         ("Bài 5", "MIP lựa chọn 15 dự án"),
-        ("Bài 6", "Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng Xếp hạng TOPSIS 6 vùng"),
+        ("Bài 6", "Xếp hạng TOPSIS 6 vùng"),
         ("Bài 7", "NSGA-II Pareto"),
         ("Bài 8", "Tối ưu động 2026-2035"),
     ]
