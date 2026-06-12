@@ -380,11 +380,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "3.4.1 Chuẩn hóa",
-            "3.4.2 Priority",
-            "3.4.3 Độ nhạy AI",
-            "3.4.4 So sánh trọng số",
-            "3.5 Chính sách",
+            "Ma trận chuẩn hóa",
+            "Xếp hạng ngành",
+            "Độ nhạy AI",
+            "So sánh trọng số",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -392,7 +392,7 @@ def render():
     # 3.4.1
     # =====================================================
     with tabs[0]:
-        st.header("3.4.1. Ma trận chuẩn hóa min-max")
+      
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Số ngành", f"{len(df)}")
@@ -427,7 +427,7 @@ def render():
     # 3.4.2
     # =====================================================
     with tabs[1]:
-        st.header("3.4.2. Tính Priority và xếp hạng ngành")
+       
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Ngành top 1", top1["Ngành"])
@@ -476,7 +476,7 @@ def render():
     # 3.4.3
     # =====================================================
     with tabs[2]:
-        st.header("3.4.3. Độ nhạy theo trọng số AI readiness")
+       
 
         top3_rows = []
 
@@ -565,7 +565,7 @@ def render():
     # 3.4.4
     # =====================================================
     with tabs[3]:
-        st.header("3.4.4. So sánh hai bộ trọng số")
+      
 
         st.subheader("Hai bộ trọng số")
         show_table(compare_weights_df, decimals=3)
@@ -627,7 +627,7 @@ def render():
     # 3.5
     # =====================================================
     with tabs[4]:
-        st.header("3.5. Thảo luận chính sách")
+     
 
         top3_names = top3_default["Ngành"].tolist()
         top3_text = ", ".join(top3_names)
