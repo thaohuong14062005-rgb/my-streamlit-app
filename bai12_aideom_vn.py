@@ -1,38 +1,72 @@
-"S3. AI dẫn dắt": "#2A9D8F",
-"S4. Bao trùm số": "#F4A261",
-"S5. Tối ưu cân bằng": "#8E44AD",
-    "K": "#053151",
-    "D": "#E76F51",
-    "AI": "#2A9D8F",
-    "H": "#F4A261",
-"GDP": "#053151",
-"Digital Index": "#E76F51",
-"AI Readiness": "#2A9D8F",
-"NetJob": "#F4A261",
-    "Risk": "#BC4749",
+"D": "#E76F51",
+"AI": "#2A9D8F",
+"H": "#F4A261",
+    "GDP": "#053151",
+    "Digital Index": "#E76F51",
+    "AI Readiness": "#2A9D8F",
+    "NetJob": "#F4A261",
     "Risk score": "#BC4749",
 }
 
 
-# =========================================================
-# BÀI 12 — AIDEOM-VN INTEGRATED DASHBOARD
-# =========================================================
-
-
 YEARS = np.arange(2026, 2031)
 
+
 MODULES = [
-@@ -75,7 +74,8 @@
+{
+"Module": "M1",
+"Tên": "Dự báo kinh tế",
+"Đầu vào": "Macro 2020-2025",
+"Đầu ra": "GDP, TFP, lao động 2026-2030",
+        "Kỹ thuật chính": "Cobb-Douglas + Bài 1, có thể bổ sung VAR/LSTM",
+        "Kỹ thuật chính": "Cobb-Douglas + Bài 1",
+},
+{
+"Module": "M2",
+"Tên": "Đánh giá sẵn sàng số",
+"Đầu vào": "Sectors, Regions",
+        "Đầu ra": "Bản đồ Digital Index + AI Readiness",
+        "Kỹ thuật chính": "Bài 6 TOPSIS + entropy weight",
+        "Đầu ra": "Digital Index + AI Readiness",
+        "Kỹ thuật chính": "Bài 6 TOPSIS",
+},
+{
+"Module": "M3",
+"Tên": "Tối ưu phân bổ",
+"Đầu vào": "Budget, beta-matrix",
+"Đầu ra": "Phân bổ ngành - vùng - thời gian",
+        "Kỹ thuật chính": "Bài 4 LP + Bài 8 dynamic",
+        "Kỹ thuật chính": "Bài 4 + Bài 8",
+},
+{
+"Module": "M4",
+"Tên": "Mô phỏng lao động",
+"Đầu vào": "AI, H plans",
+"Đầu ra": "NetJob từng ngành",
+        "Kỹ thuật chính": "Bài 9 + bổ sung Markov chain",
+        "Kỹ thuật chính": "Bài 9",
+},
+{
+"Module": "M5",
+"Tên": "Đánh giá rủi ro",
+"Đầu vào": "Risk parameters",
+        "Đầu ra": "Cyber, environmental, dependency",
+        "Kỹ thuật chính": "Bài 7 đa mục tiêu + Bài 10 SP",
+        "Đầu ra": "Cyber, môi trường, phụ thuộc",
+        "Kỹ thuật chính": "Bài 7 + Bài 10",
+},
+{
+"Module": "M6",
+"Tên": "Dashboard ra quyết định",
+"Đầu vào": "Outputs M1-M5",
+        "Đầu ra": "Trực quan kịch bản, cảnh báo, khuyến nghị",
+        "Kỹ thuật chính": "Streamlit / Dash / Plotly",
+        "Đầu ra": "Kịch bản, cảnh báo, khuyến nghị",
+        "Kỹ thuật chính": "Streamlit / Plotly",
 },
 ]
 
-SCENARIOS = [
-
-BASE_SCENARIOS = [
-{
-"Kịch bản": "S1. Truyền thống",
-"Mô tả ngắn": "Tập trung vốn vật chất, FDI, hạ tầng truyền thống, xuất khẩu",
-@@ -84,6 +84,7 @@
+@@ -84,17 +80,15 @@
 "D": 0.10,
 "AI": 0.10,
 "H": 0.10,
@@ -40,7 +74,10 @@ BASE_SCENARIOS = [
 },
 {
 "Kịch bản": "S2. Số hóa nhanh",
-@@ -93,6 +94,7 @@
+        "Mô tả ngắn": "Tăng đầu tư chính phủ số, doanh nghiệp số, thanh toán số",
+        "Mô tả ngắn": "Tăng chính phủ số, doanh nghiệp số, thanh toán số",
+"Đặc điểm phân bổ": "25% K + 45% D + 15% AI + 15% H",
+"K": 0.25,
 "D": 0.45,
 "AI": 0.15,
 "H": 0.15,
@@ -48,7 +85,7 @@ BASE_SCENARIOS = [
 },
 {
 "Kịch bản": "S3. AI dẫn dắt",
-@@ -102,6 +104,7 @@
+@@ -104,7 +98,6 @@
 "D": 0.20,
 "AI": 0.45,
 "H": 0.15,
@@ -56,157 +93,152 @@ BASE_SCENARIOS = [
 },
 {
 "Kịch bản": "S4. Bao trùm số",
-@@ -111,21 +114,13 @@
+@@ -114,7 +107,6 @@
 "D": 0.20,
 "AI": 0.10,
 "H": 0.40,
-    },
-    {
-        "Kịch bản": "S5. Tối ưu cân bằng",
-        "Mô tả ngắn": "Kết quả mô hình AIDEOM-VN tự chạy ra",
-        "Đặc điểm phân bổ": "Tối ưu cân bằng K/D/AI/H",
-        "K": 0.35,
-        "D": 0.25,
-        "AI": 0.22,
-        "H": 0.18,
         "Loại": "Cố định",
 },
 ]
 
+@@ -143,8 +135,6 @@ def fallback_macro_data():
+"GDP_trillion_VND": [6345, 6480, 7200, 7550, 8075, 8550],
+"GDP_growth_pct": [2.9, 2.6, 8.0, 5.1, 7.1, 6.5],
+"digital_economy_share_GDP_pct": [12.0, 13.5, 14.8, 16.0, 17.2, 18.5],
+            "labor_productivity_million_VND": [150, 158, 170, 178, 188, 198],
+            "inflation_CPI_pct": [3.2, 1.8, 3.2, 3.3, 3.8, 3.5],
+}
+)
 
-def find_file(filename):
-    possible_paths = [
-    paths = [
-filename,
-f"./{filename}",
-f"data/{filename}",
-@@ -134,7 +129,7 @@ def find_file(filename):
-f"./datasets/{filename}",
-]
+@@ -163,7 +153,6 @@ def fallback_region_data():
+"digital_index_0_100": [48, 78, 55, 42, 82, 52],
+"ai_readiness_0_100": [41, 77, 49, 36, 84, 45],
+"trained_labor_pct": [24, 42, 29, 22, 45, 25],
+            "gini_coef": [0.39, 0.36, 0.37, 0.40, 0.38, 0.35],
+}
+)
 
-    for path in possible_paths:
-    for path in paths:
-if os.path.exists(path):
-return path
+@@ -181,9 +170,8 @@ def fallback_sector_data():
+"Thông tin - Truyền thông",
+"Giáo dục - Y tế - Xã hội",
+],
+            "growth_rate_2024_pct": [3.3, 9.6, 7.2, 8.1, 7.8, 6.9, 10.5, 5.8],
+            "ai_readiness_0_100": [38, 62, 44, 55, 82, 58, 88, 52],
+"automation_risk_pct": [18, 42, 25, 38, 52, 35, 28, 22],
+            "ai_readiness_0_100": [38, 62, 44, 55, 82, 58, 88, 52],
+}
+)
 
-@@ -197,87 +192,106 @@ def load_macro_data():
+@@ -192,277 +180,202 @@ def load_macro_data():
 path = find_file("vietnam_macro_2020_2025.csv")
 
 if path is None:
-        return fallback_macro_data()
         return fallback_macro_data(), "Fallback"
+        return fallback_macro_data()
 
 try:
 df = pd.read_csv(path)
 
-        needed = ["year", "GDP_trillion_VND", "GDP_growth_pct"]
         required = ["year", "GDP_trillion_VND", "GDP_growth_pct"]
 
-        for col in needed:
-            if col not in df.columns:
-                return fallback_macro_data()
         if any(col not in df.columns for col in required):
             return fallback_macro_data(), "Fallback"
+        if "year" not in df.columns or "GDP_trillion_VND" not in df.columns:
+            return fallback_macro_data()
 
 for col in df.columns:
 if col != "year":
 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        return df.dropna(subset=needed).reset_index(drop=True)
         df = df.dropna(subset=required).reset_index(drop=True)
 
         if len(df) == 0:
             return fallback_macro_data(), "Fallback"
 
         return df, path
+        return df.dropna(subset=["year", "GDP_trillion_VND"]).reset_index(drop=True)
 
 except Exception:
-        return fallback_macro_data()
         return fallback_macro_data(), "Fallback"
+        return fallback_macro_data()
 
 
 def load_region_data():
 path = find_file("vietnam_regions_2024.csv")
 
 if path is None:
-        return fallback_region_data()
         return fallback_region_data(), "Fallback"
+        return fallback_region_data()
 
 try:
 df = pd.read_csv(path)
 
-        needed = ["region_name_vi", "digital_index_0_100", "ai_readiness_0_100"]
         required = ["region_name_vi", "digital_index_0_100", "ai_readiness_0_100"]
 
-        for col in needed:
-            if col not in df.columns:
-                return fallback_region_data()
         if any(col not in df.columns for col in required):
             return fallback_region_data(), "Fallback"
 
-for col in df.columns:
-            if col != "region_name_vi" and df[col].dtype != "object":
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in df.columns:
             if col != "region_name_vi":
                 df[col] = pd.to_numeric(df[col], errors="ignore")
+        need = ["digital_index_0_100", "ai_readiness_0_100"]
 
         df = df.dropna(subset=required).reset_index(drop=True)
+        if any(col not in df.columns for col in need):
+            return fallback_region_data()
 
-        return df.dropna(subset=needed).reset_index(drop=True)
         if len(df) == 0:
             return fallback_region_data(), "Fallback"
+        for col in need + ["trained_labor_pct"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
         return df, path
+        return df.dropna(subset=need).reset_index(drop=True)
 
 except Exception:
-        return fallback_region_data()
         return fallback_region_data(), "Fallback"
+        return fallback_region_data()
 
 
 def load_sector_data():
 path = find_file("vietnam_sectors_2024.csv")
 
 if path is None:
-        return fallback_sector_data()
         return fallback_sector_data(), "Fallback"
+        return fallback_sector_data()
 
 try:
 df = pd.read_csv(path)
 
-        needed = ["sector_name_vi", "ai_readiness_0_100"]
         required = ["sector_name_vi", "ai_readiness_0_100"]
 
-        for col in needed:
-            if col not in df.columns:
-                return fallback_sector_data()
         if any(col not in df.columns for col in required):
             return fallback_sector_data(), "Fallback"
 
-for col in df.columns:
-            if col != "sector_name_vi" and df[col].dtype != "object":
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+        for col in df.columns:
             if col != "sector_name_vi":
                 df[col] = pd.to_numeric(df[col], errors="ignore")
 
-        return df.dropna(subset=needed).reset_index(drop=True)
         df = df.dropna(subset=required).reset_index(drop=True)
+        if "automation_risk_pct" not in df.columns:
+            return fallback_sector_data()
 
-    except Exception:
-        return fallback_sector_data()
         if len(df) == 0:
             return fallback_sector_data(), "Fallback"
+        df["automation_risk_pct"] = pd.to_numeric(df["automation_risk_pct"], errors="coerce")
 
         return df, path
+        return df.dropna(subset=["automation_risk_pct"]).reset_index(drop=True)
 
-def scenario_df():
-    return pd.DataFrame(SCENARIOS)
-    except Exception:
+except Exception:
         return fallback_sector_data(), "Fallback"
 
 
 def modules_df():
-return pd.DataFrame(MODULES)
+    return pd.DataFrame(MODULES)
 
+        return fallback_sector_data()
 
 def normalize_weights(weights):
     total = sum(weights.values())
@@ -219,32 +251,38 @@ def normalize_weights(weights):
 
 
 def base_values_from_data(macro, regions, sectors):
-    last = macro.sort_values("year").iloc[-1]
-    macro = macro.sort_values("year").reset_index(drop=True)
-    last = macro.iloc[-1]
+def get_base_values(macro, regions, sectors):
+macro = macro.sort_values("year").reset_index(drop=True)
+last = macro.iloc[-1]
 
 gdp0 = float(last.get("GDP_trillion_VND", 8550))
-growth0 = float(last.get("GDP_growth_pct", 6.5))
-@@ -292,19 +306,31 @@ def base_values_from_data(macro, regions, sectors):
-else:
-productivity0 = 198.0
+    growth0 = float(last.get("GDP_growth_pct", 6.5))
 
-    digital_index0 = float(regions["digital_index_0_100"].mean())
-    ai_ready0 = float(regions["ai_readiness_0_100"].mean())
+if "digital_economy_share_GDP_pct" in macro.columns:
+digital_share0 = float(last.get("digital_economy_share_GDP_pct", 18.5))
+else:
+digital_share0 = 18.5
+
+    if "labor_productivity_million_VND" in macro.columns:
+        productivity0 = float(last.get("labor_productivity_million_VND", 198))
+    else:
+        productivity0 = 198.0
+
     digital_index0 = float(pd.to_numeric(regions["digital_index_0_100"], errors="coerce").mean())
     ai_ready0 = float(pd.to_numeric(regions["ai_readiness_0_100"], errors="coerce").mean())
+    digital_index0 = float(regions["digital_index_0_100"].mean())
+    ai_ready0 = float(regions["ai_readiness_0_100"].mean())
 
 if "trained_labor_pct" in regions.columns:
-        trained0 = float(regions["trained_labor_pct"].mean())
         trained0 = float(pd.to_numeric(regions["trained_labor_pct"], errors="coerce").mean())
+        trained0 = float(regions["trained_labor_pct"].mean())
 else:
 trained0 = 32.0
 
-if "automation_risk_pct" in sectors.columns:
-        automation_risk0 = float(sectors["automation_risk_pct"].mean())
+    if "automation_risk_pct" in sectors.columns:
         automation_risk0 = float(pd.to_numeric(sectors["automation_risk_pct"], errors="coerce").mean())
-else:
-automation_risk0 = 32.5
+    else:
+        automation_risk0 = 32.5
 
     if np.isnan(digital_index0):
         digital_index0 = 60.0
@@ -257,85 +295,54 @@ automation_risk0 = 32.5
 
     if np.isnan(automation_risk0):
         automation_risk0 = 32.5
+    risk0 = float(sectors["automation_risk_pct"].mean())
 
 return {
-"gdp0": gdp0,
-"growth0": growth0,
-@@ -317,103 +343,252 @@ def base_values_from_data(macro, regions, sectors):
+        "gdp0": gdp0,
+        "growth0": growth0,
+        "digital_share0": digital_share0,
+        "productivity0": productivity0,
+        "digital_index0": digital_index0,
+        "ai_ready0": ai_ready0,
+        "trained0": trained0,
+        "automation_risk0": automation_risk0,
+        "GDP": gdp0,
+        "Digital Index": digital_index0,
+        "AI Readiness": ai_ready0,
+        "Training": trained0,
+        "Digital share": digital_share0,
+        "Risk": risk0,
 }
 
 
-def simulate_scenarios(macro, regions, sectors, annual_budget=1000):
-    base = base_values_from_data(macro, regions, sectors)
-
 def simulate_one_scenario(scenario, base, annual_budget=1000):
+def simulate_one_scenario(scenario, base):
 rows = []
 
-    for sc in SCENARIOS:
-        gdp = base["gdp0"]
-        digital_index = base["digital_index0"]
-        ai_ready = base["ai_ready0"]
-        trained = base["trained0"]
-        risk = base["automation_risk0"]
-        digital_share = base["digital_share0"]
-
-        for idx, year in enumerate(YEARS):
-            k = sc["K"]
-            d = sc["D"]
-            ai = sc["AI"]
-            h = sc["H"]
-
-            growth = (
-                4.6
-                + 1.00 * k
-                + 1.45 * d
-                + 1.70 * ai
-                + 0.95 * h
-                + 0.018 * (digital_index - 50)
-                + 0.012 * (ai_ready - 50)
-            )
-
-            inclusion_bonus = 1.8 * h + 0.8 * d
-            environment_pressure = 14.0 * k + 18.0 * ai - 10.0 * d - 8.0 * h
-            cyber_pressure = 20.0 * ai + 10.0 * d - 6.0 * h
-            dependency_pressure = 16.0 * ai + 8.0 * d - 4.0 * h
-
-            displaced = risk * (0.50 * ai + 0.20 * d) * 100
-            upgrade = trained * h * 18
-            new_job = 550 * ai + 260 * d + 180 * h
-            net_job = new_job + upgrade - displaced
-
-            risk_score = np.clip(
-                35
-                + 0.35 * environment_pressure
-                + 0.32 * cyber_pressure
-                + 0.22 * dependency_pressure
-                - 0.20 * inclusion_bonus,
-                0,
-                100,
-            )
-
-            gdp = gdp * (1 + growth / 100)
-            digital_index = min(100, digital_index + 3.8 * d + 1.4 * k + 1.1 * h)
-            ai_ready = min(100, ai_ready + 4.2 * ai + 1.4 * d + 1.7 * h)
-            trained = min(100, trained + 3.6 * h + 0.8 * d)
-            digital_share = min(45, digital_share + 1.3 * d + 1.0 * ai + 0.4 * h)
-
-            rows.append(
     gdp = base["gdp0"]
     digital_index = base["digital_index0"]
     ai_ready = base["ai_ready0"]
     trained = base["trained0"]
     digital_share = base["digital_share0"]
     automation_risk = base["automation_risk0"]
+    gdp = base["GDP"]
+    digital_index = base["Digital Index"]
+    ai_ready = base["AI Readiness"]
+    training = base["Training"]
+    digital_share = base["Digital share"]
+    risk_base = base["Risk"]
 
-    for year in YEARS:
+for year in YEARS:
         k = float(scenario["K"])
         d = float(scenario["D"])
         ai = float(scenario["AI"])
         h = float(scenario["H"])
+        k = scenario["K"]
+        d = scenario["D"]
+        ai = scenario["AI"]
+        h = scenario["H"]
 
-        growth = (
+growth = (
             4.40
             + 1.05 * k
             + 1.45 * d
@@ -364,27 +371,51 @@ rows = []
             - 0.18 * trained * h,
             0,
             100,
-        )
+            4.5
+            + 1.0 * k
+            + 1.4 * d
+            + 1.7 * ai
+            + 0.9 * h
+            + 0.015 * (digital_index - 55)
+            + 0.010 * (ai_ready - 55)
+)
 
-        gdp = gdp * (1 + growth / 100)
+gdp = gdp * (1 + growth / 100)
         digital_index = min(100, digital_index + 3.7 * d + 1.4 * k + 1.1 * h)
         ai_ready = min(100, ai_ready + 4.5 * ai + 1.2 * d + 1.5 * h)
         trained = min(100, trained + 3.7 * h + 0.7 * d)
         digital_share = min(45, digital_share + 1.35 * d + 1.05 * ai + 0.45 * h)
 
-        rows.append(
-            {
+        digital_index = min(100, digital_index + 3.6 * d + 1.3 * k + 0.9 * h)
+        ai_ready = min(100, ai_ready + 4.3 * ai + 1.1 * d + 1.2 * h)
+        training = min(100, training + 3.4 * h + 0.7 * d)
+        digital_share = min(45, digital_share + 1.2 * d + 1.0 * ai + 0.4 * h)
+
+        displaced = risk_base * (0.50 * ai + 0.22 * d + 0.10 * k) * 16
+        new_job = 520 * ai + 270 * d + 160 * h
+        net_job = new_job - displaced + training * h * 12
+
+        cyber_risk = np.clip(35 + 18 * ai + 8 * d - 7 * h, 0, 100)
+        env_risk = np.clip(35 + 14 * k + 17 * ai - 7 * d - 6 * h, 0, 100)
+        labor_risk = np.clip(35 + displaced / 25 - 0.25 * training * h, 0, 100)
+
+        risk_score = np.clip(0.35 * cyber_risk + 0.30 * env_risk + 0.35 * labor_risk, 0, 100)
+
+rows.append(
+{
                 "Năm": int(year),
-                "Kịch bản": scenario["Kịch bản"],
-                "GDP": gdp,
-                "GDP growth (%)": growth,
-                "Digital Index": digital_index,
-                "AI Readiness": ai_ready,
+                "Năm": year,
+"Kịch bản": scenario["Kịch bản"],
+"GDP": gdp,
+"GDP growth (%)": growth,
+"Digital Index": digital_index,
+"AI Readiness": ai_ready,
                 "Lao động đào tạo (%)": trained,
-                "Kinh tế số/GDP (%)": digital_share,
-                "NetJob": net_job,
+                "Lao động đào tạo (%)": training,
+"Kinh tế số/GDP (%)": digital_share,
+"NetJob": net_job,
                 "DisplacedJob": displaced_job,
-                "Risk score": risk_score,
+"Risk score": risk_score,
                 "Cyber risk": np.clip(35 + cyber_pressure, 0, 100),
                 "Environmental risk": np.clip(35 + environmental_pressure, 0, 100),
                 "Dependency risk": np.clip(35 + dependency_pressure, 0, 100),
@@ -394,10 +425,13 @@ rows = []
                 "AI": ai * annual_budget,
                 "H": h * annual_budget,
                 "Tổng ngân sách": annual_budget,
-            }
-        )
+                "Cyber risk": cyber_risk,
+                "Environmental risk": env_risk,
+                "Labor risk": labor_risk,
+}
+)
 
-    return pd.DataFrame(rows)
+return pd.DataFrame(rows)
 
 
 def absolute_candidate_score(row, score_weights):
@@ -407,62 +441,92 @@ def absolute_candidate_score(row, score_weights):
     netjob_score = np.clip((row["NetJob"] + 200) / 1400, 0, 1)
     risk_score = np.clip(1 - row["Risk score"] / 100, 0, 1)
     training_score = np.clip(row["Lao động đào tạo (%)"] / 100, 0, 1)
+def normalize(x):
+    arr = np.asarray(x, dtype=float)
+    min_v = np.nanmin(arr)
+    max_v = np.nanmax(arr)
 
-    score = (
+    if np.isclose(max_v, min_v):
+        return np.ones_like(arr) * 0.5
+
+    return (arr - min_v) / (max_v - min_v)
+
+
+def score_terminal(df2030):
+score = (
         score_weights["GDP"] * gdp_growth_score
         + score_weights["Digital"] * digital_score
         + score_weights["AI"] * ai_score
         + score_weights["NetJob"] * netjob_score
         + score_weights["Risk"] * risk_score
         + score_weights["Training"] * training_score
-    )
+        0.25 * normalize(df2030["GDP"])
+        + 0.20 * normalize(df2030["Digital Index"])
+        + 0.20 * normalize(df2030["AI Readiness"])
+        + 0.20 * normalize(df2030["NetJob"])
+        + 0.15 * normalize(-df2030["Risk score"])
+)
 
     return float(score)
+    return score
 
 
 def optimize_s5_allocation(base, score_weights, annual_budget=1000, step=0.05):
-    candidates = []
+def optimize_s5(base):
+candidates = []
 
     grid = np.arange(0.10, 0.501, step)
+    grid = np.arange(0.10, 0.501, 0.05)
 
-    for k in grid:
-        for d in grid:
-            for ai in grid:
+for k in grid:
+for d in grid:
+for ai in grid:
                 h = 1.0 - k - d - ai
+                h = 1 - k - d - ai
 
-                if h < 0.10 or h > 0.50:
-                    continue
+if h < 0.10 or h > 0.50:
+continue
 
-                if k < 0.15 or d < 0.15 or ai < 0.10:
-                    continue
+if k < 0.15 or d < 0.15 or ai < 0.10:
+continue
 
                 if not np.isclose(k + d + ai + h, 1.0, atol=1e-8):
                     continue
 
-                scenario = {
-                    "Kịch bản": "Candidate",
-                    "K": k,
-                    "D": d,
-                    "AI": ai,
-                    "H": h,
-                }
+scenario = {
+"Kịch bản": "Candidate",
+"K": k,
+@@ -471,125 +384,60 @@ def optimize_s5_allocation(base, score_weights, annual_budget=1000, step=0.05):
+"H": h,
+}
 
                 path = simulate_one_scenario(scenario, base, annual_budget=annual_budget)
                 terminal = path[path["Năm"] == 2030].iloc[0]
                 score = absolute_candidate_score(terminal, score_weights)
+                sim = simulate_one_scenario(scenario, base)
+                terminal = sim[sim["Năm"] == 2030].copy()
 
                 balance_penalty = 0.035 * (
                     abs(k - 0.25) + abs(d - 0.25) + abs(ai - 0.25) + abs(h - 0.25)
-                )
+                raw = (
+                    0.25 * min(1, terminal["GDP"].iloc[0] / (base["GDP"] * 1.45))
+                    + 0.20 * terminal["Digital Index"].iloc[0] / 100
+                    + 0.20 * terminal["AI Readiness"].iloc[0] / 100
+                    + 0.20 * np.clip((terminal["NetJob"].iloc[0] + 300) / 1400, 0, 1)
+                    + 0.15 * (1 - terminal["Risk score"].iloc[0] / 100)
+)
 
                 final_score = score - balance_penalty
+                balance_penalty = 0.04 * (
+                    abs(k - 0.25) + abs(d - 0.25) + abs(ai - 0.25) + abs(h - 0.25)
+                )
 
-                candidates.append(
-                    {
-                        "K": k,
-                        "D": d,
-                        "AI": ai,
-                        "H": h,
+candidates.append(
+{
+"K": k,
+"D": d,
+"AI": ai,
+"H": h,
                         "Raw score": score,
                         "Balance penalty": balance_penalty,
                         "Optimized score": final_score,
@@ -471,8 +535,9 @@ def optimize_s5_allocation(base, score_weights, annual_budget=1000, step=0.05):
                         "AI Readiness 2030": terminal["AI Readiness"],
                         "NetJob 2030": terminal["NetJob"],
                         "Risk score 2030": terminal["Risk score"],
-                    }
-                )
+                        "Score": raw - balance_penalty,
+}
+)
 
     candidate_df = pd.DataFrame(candidates)
 
@@ -483,28 +548,12 @@ def optimize_s5_allocation(base, score_weights, annual_budget=1000, step=0.05):
             "AI": 0.22,
             "H": 0.18,
         }
+    cand = pd.DataFrame(candidates).sort_values("Score", ascending=False).reset_index(drop=True)
+    best = cand.iloc[0]
 
         candidate_df = pd.DataFrame(
             [
-{
-                    "Năm": int(year),
-                    "Kịch bản": sc["Kịch bản"],
-                    "GDP": gdp,
-                    "GDP growth (%)": growth,
-                    "Digital Index": digital_index,
-                    "AI Readiness": ai_ready,
-                    "Lao động đào tạo (%)": trained,
-                    "Kinh tế số/GDP (%)": digital_share,
-                    "NetJob": net_job,
-                    "Risk score": risk_score,
-                    "Cyber risk": np.clip(35 + cyber_pressure, 0, 100),
-                    "Environmental risk": np.clip(35 + environment_pressure, 0, 100),
-                    "Dependency risk": np.clip(35 + dependency_pressure, 0, 100),
-                    "K": k * annual_budget,
-                    "D": d * annual_budget,
-                    "AI": ai * annual_budget,
-                    "H": h * annual_budget,
-                    "Tổng ngân sách": annual_budget,
+                {
                     **fallback,
                     "Raw score": 0.0,
                     "Balance penalty": 0.0,
@@ -514,45 +563,37 @@ def optimize_s5_allocation(base, score_weights, annual_budget=1000, step=0.05):
                     "AI Readiness 2030": np.nan,
                     "NetJob 2030": np.nan,
                     "Risk score 2030": np.nan,
-}
-            )
+                }
             ]
         )
 
-    return pd.DataFrame(rows)
     candidate_df = candidate_df.sort_values("Optimized score", ascending=False).reset_index(drop=True)
     best = candidate_df.iloc[0].to_dict()
 
     s5 = {
-        "Kịch bản": "S5. Tối ưu cân bằng",
+    return {
+"Kịch bản": "S5. Tối ưu cân bằng",
         "Mô tả ngắn": "Kết quả mô hình AIDEOM-VN tự tối ưu theo trọng số KPI",
         "Đặc điểm phân bổ": (
             f"{best['K']:.0%} K + {best['D']:.0%} D + "
             f"{best['AI']:.0%} AI + {best['H']:.0%} H"
         ),
-        "K": float(best["K"]),
-        "D": float(best["D"]),
-        "AI": float(best["AI"]),
-        "H": float(best["H"]),
+        "Mô tả ngắn": "Kết quả mô hình AIDEOM-VN tự chạy ra",
+        "Đặc điểm phân bổ": f"{best['K']:.0%} K + {best['D']:.0%} D + {best['AI']:.0%} AI + {best['H']:.0%} H",
+"K": float(best["K"]),
+"D": float(best["D"]),
+"AI": float(best["AI"]),
+"H": float(best["H"]),
         "Loại": "Tối ưu tự động",
-    }
+}
 
-def kpi_2030_table(sim_df):
-    df = sim_df[sim_df["Năm"] == 2030].copy()
     return s5, candidate_df
 
-    df["Xếp hạng GDP"] = df["GDP"].rank(ascending=False, method="min").astype(int)
-    df["Xếp hạng AI"] = df["AI Readiness"].rank(ascending=False, method="min").astype(int)
-    df["Xếp hạng Risk"] = df["Risk score"].rank(ascending=True, method="min").astype(int)
 
-    score = (
-        0.30 * normalize_series(df["GDP"])
-        + 0.20 * normalize_series(df["Digital Index"])
-        + 0.20 * normalize_series(df["AI Readiness"])
-        + 0.15 * normalize_series(df["NetJob"])
-        + 0.15 * normalize_series(-df["Risk score"])
 def build_scenarios(s5):
-    return BASE_SCENARIOS + [s5]
+def build_scenarios(base):
+    s5 = optimize_s5(base)
+return BASE_SCENARIOS + [s5]
 
 
 def simulate_scenarios(scenarios, macro, regions, sectors, annual_budget=1000):
@@ -563,7 +604,9 @@ def simulate_scenarios(scenarios, macro, regions, sectors, annual_budget=1000):
     for scenario in scenarios:
         frames.append(simulate_one_scenario(scenario, base, annual_budget=annual_budget))
 
-    return pd.concat(frames, ignore_index=True)
+def simulate_all(scenarios, base):
+    frames = [simulate_one_scenario(sc, base) for sc in scenarios]
+return pd.concat(frames, ignore_index=True)
 
 
 def normalize_series(x):
@@ -578,7 +621,8 @@ def normalize_series(x):
 
 
 def kpi_2030_table(sim_df, score_weights):
-    df = sim_df[sim_df["Năm"] == 2030].copy().reset_index(drop=True)
+def kpi_2030(sim_df):
+df = sim_df[sim_df["Năm"] == 2030].copy().reset_index(drop=True)
 
     df["Score GDP"] = normalize_series(df["GDP"])
     df["Score Digital"] = normalize_series(df["Digital Index"])
@@ -594,78 +638,69 @@ def kpi_2030_table(sim_df, score_weights):
         + score_weights["NetJob"] * df["Score NetJob"]
         + score_weights["Risk"] * df["Score Risk"]
         + score_weights["Training"] * df["Score Training"]
-)
+    )
 
-    df["AIDEOM score"] = score
-df["Xếp hạng tổng hợp"] = df["AIDEOM score"].rank(ascending=False, method="min").astype(int)
+    df["Xếp hạng tổng hợp"] = df["AIDEOM score"].rank(ascending=False, method="min").astype(int)
+    df["AIDEOM score"] = score_terminal(df)
+    df["Xếp hạng"] = df["AIDEOM score"].rank(ascending=False, method="min").astype(int)
 
 cols = [
-@@ -425,6 +600,7 @@ def kpi_2030_table(sim_df):
+"Kịch bản",
+@@ -600,17 +448,16 @@ def kpi_2030_table(sim_df, score_weights):
 "Lao động đào tạo (%)",
 "Kinh tế số/GDP (%)",
 "NetJob",
         "DisplacedJob",
 "Risk score",
 "AIDEOM score",
-"Xếp hạng tổng hợp",
-@@ -433,19 +609,8 @@ def kpi_2030_table(sim_df):
-return df[cols].sort_values("Xếp hạng tổng hợp").reset_index(drop=True)
+        "Xếp hạng tổng hợp",
+        "Xếp hạng",
+]
 
-
-def normalize_series(x):
-    arr = np.asarray(x, dtype=float)
-    min_v = np.nanmin(arr)
-    max_v = np.nanmax(arr)
-
-    if np.isclose(max_v, min_v):
-        return np.ones_like(arr) * 0.5
-
-    return (arr - min_v) / (max_v - min_v)
+    return df[cols].sort_values("Xếp hạng tổng hợp").reset_index(drop=True)
+    return df[cols].sort_values("Xếp hạng").reset_index(drop=True)
 
 
 def risk_alert_table(sim_df):
-    df = sim_df[sim_df["Năm"] == 2030].copy()
     df = sim_df[sim_df["Năm"] == 2030].copy().reset_index(drop=True)
+def risk_alerts(sim_df):
+    df = sim_df[sim_df["Năm"] == 2030].copy()
 
 rows = []
 
-@@ -456,13 +621,16 @@ def risk_alert_table(sim_df):
-alerts.append("Rủi ro tổng hợp cao")
-
-if row["Cyber risk"] >= 70:
-            alerts.append("Rủi ro an ninh mạng cao")
-            alerts.append("An ninh mạng cao")
-
+@@ -626,50 +473,39 @@ def risk_alert_table(sim_df):
 if row["Environmental risk"] >= 70:
 alerts.append("Áp lực môi trường cao")
 
-if row["Dependency risk"] >= 70:
-            alerts.append("Rủi ro phụ thuộc công nghệ cao")
+        if row["Dependency risk"] >= 70:
             alerts.append("Phụ thuộc công nghệ cao")
 
         if row["Labor transition risk"] >= 70:
             alerts.append("Dịch chuyển lao động cao")
+        if row["Labor risk"] >= 70:
+            alerts.append("Rủi ro lao động cao")
 
 if row["NetJob"] < 0:
 alerts.append("NetJob âm")
-@@ -471,23 +639,28 @@ def risk_alert_table(sim_df):
-alerts.append("AI nhanh hơn năng lực nhân lực")
+
+        if row["AI Readiness"] >= 75 and row["Lao động đào tạo (%)"] < 40:
+            alerts.append("AI nhanh hơn năng lực nhân lực")
 
 if len(alerts) == 0:
-            level = "Thấp"
-            level = "Xanh"
+level = "Xanh"
             action = "Theo dõi định kỳ"
-alert_text = "Không có cảnh báo lớn"
+            alert_text = "Không có cảnh báo lớn"
+            text = "Không có cảnh báo lớn"
 elif row["Risk score"] >= 70 or row["NetJob"] < 0:
-            level = "Cao"
-            level = "Đỏ"
+level = "Đỏ"
             action = "Cần can thiệp chính sách"
-alert_text = "; ".join(alerts)
+            alert_text = "; ".join(alerts)
+            text = "; ".join(alerts)
 else:
-            level = "Trung bình"
-            level = "Vàng"
+level = "Vàng"
             action = "Cần theo dõi sát"
-alert_text = "; ".join(alerts)
+            alert_text = "; ".join(alerts)
+            text = "; ".join(alerts)
 
 rows.append(
 {
@@ -675,58 +710,71 @@ rows.append(
 "Risk score": row["Risk score"],
 "Cyber risk": row["Cyber risk"],
 "Environmental risk": row["Environmental risk"],
-"Dependency risk": row["Dependency risk"],
+                "Dependency risk": row["Dependency risk"],
                 "Labor transition risk": row["Labor transition risk"],
+                "Labor risk": row["Labor risk"],
 "NetJob": row["NetJob"],
-"Cảnh báo": alert_text,
+                "Cảnh báo": alert_text,
+                "Cảnh báo": text,
 }
-@@ -497,33 +670,38 @@ def risk_alert_table(sim_df):
+)
+
+return pd.DataFrame(rows)
 
 
 def recommendation_table(kpi_df, risk_df):
-    merged = kpi_df.merge(risk_df[["Kịch bản", "Mức cảnh báo", "Cảnh báo"]], on="Kịch bản", how="left")
-    merged = kpi_df.merge(
-        risk_df[["Kịch bản", "Mức cảnh báo", "Cảnh báo"]],
-        on="Kịch bản",
-        how="left",
-    )
-
+def recommendations(kpi_df, risk_df):
+merged = kpi_df.merge(
+risk_df[["Kịch bản", "Mức cảnh báo", "Cảnh báo"]],
+on="Kịch bản",
+@@ -679,147 +515,29 @@ def recommendation_table(kpi_df, risk_df):
 rows = []
 
 for _, row in merged.iterrows():
-scenario = row["Kịch bản"]
+        scenario = row["Kịch bản"]
 
-if scenario.startswith("S1"):
-            rec = "Không nên chọn làm chiến lược trung tâm; chỉ giữ vai trò nền tảng hạ tầng vì chuyển đổi số và AI readiness thấp."
-priority = "Giảm tỷ trọng K, tăng D và H"
+        if scenario.startswith("S1"):
+            priority = "Giảm tỷ trọng K, tăng D và H"
             rec = "Không nên chọn làm trục trung tâm. Phù hợp làm kịch bản đối chứng vì tăng trưởng truyền thống nhưng chuyển đổi số chậm."
-elif scenario.startswith("S2"):
-            rec = "Phù hợp để tăng tốc chính phủ số và kinh tế số; cần bổ sung an ninh dữ liệu và đào tạo kỹ năng số."
-priority = "Tăng cyber governance và kỹ năng số"
+        elif scenario.startswith("S2"):
+            priority = "Tăng cyber governance và kỹ năng số"
             rec = "Phù hợp để tăng tốc chính phủ số và kinh tế số; cần kiểm soát rủi ro dữ liệu và đào tạo kỹ năng số."
-elif scenario.startswith("S3"):
-            rec = "Tạo tăng trưởng và AI readiness cao nhưng cần kiểm soát rủi ro tự động hóa, phụ thuộc công nghệ và an ninh mạng."
-priority = "AI đi kèm H, an ninh mạng và chuẩn dữ liệu"
+        elif scenario.startswith("S3"):
+            priority = "AI đi kèm H, an ninh mạng và chuẩn dữ liệu"
             rec = "Tạo AI readiness cao, nhưng không nên triển khai nguyên trạng nếu rủi ro lao động và phụ thuộc công nghệ tăng mạnh."
-elif scenario.startswith("S4"):
-            rec = "Phù hợp mục tiêu bao trùm và an sinh; tốc độ tăng trưởng có thể thấp hơn nhưng giúp giảm phân hóa vùng và lao động."
-priority = "Ưu tiên vùng yếu, SME, giáo dục số"
+        elif scenario.startswith("S4"):
+            priority = "Ưu tiên vùng yếu, SME, giáo dục số"
             rec = "Phù hợp mục tiêu bao trùm, giảm phân hóa vùng và hỗ trợ lao động; tốc độ tăng trưởng có thể thấp hơn."
+        sc = row["Kịch bản"]
+
+        if sc.startswith("S1"):
+            rec = "Không nên chọn làm trục chính; chỉ phù hợp làm kịch bản đối chứng."
+        elif sc.startswith("S2"):
+            rec = "Phù hợp để tăng tốc số hóa, nhưng cần tăng an ninh dữ liệu và đào tạo kỹ năng số."
+        elif sc.startswith("S3"):
+            rec = "Tạo năng lực AI cao, nhưng cần kiểm soát rủi ro lao động và phụ thuộc công nghệ."
+        elif sc.startswith("S4"):
+            rec = "Tốt cho bao trùm và an sinh, nhưng cần bổ sung động lực tăng trưởng."
 else:
-            rec = "Khuyến nghị chọn làm kịch bản chính vì cân bằng giữa tăng trưởng, số hóa, AI, lao động và rủi ro."
-priority = "Triển khai làm baseline chính sách"
+            priority = "Triển khai làm baseline chính sách"
             rec = "Khuyến nghị chọn làm kịch bản nền vì cân bằng giữa tăng trưởng, số hóa, AI, lao động và rủi ro."
+            rec = "Nên chọn làm kịch bản nền vì cân bằng giữa tăng trưởng, số hóa, AI, việc làm và rủi ro."
 
 rows.append(
 {
-"Kịch bản": scenario,
-"Xếp hạng tổng hợp": row["Xếp hạng tổng hợp"],
+                "Kịch bản": scenario,
+                "Xếp hạng tổng hợp": row["Xếp hạng tổng hợp"],
                 "AIDEOM score": row["AIDEOM score"],
+                "Kịch bản": sc,
+                "Xếp hạng": row["Xếp hạng"],
 "Mức cảnh báo": row["Mức cảnh báo"],
-"Ưu tiên điều chỉnh": priority,
-"Khuyến nghị": rec,
-@@ -533,14 +711,125 @@ def recommendation_table(kpi_df, risk_df):
-return pd.DataFrame(rows).sort_values("Xếp hạng tổng hợp").reset_index(drop=True)
+                "Ưu tiên điều chỉnh": priority,
+                "Khuyến nghị": rec,
+                "Khuyến nghị ngắn": rec,
+}
+)
+
+    return pd.DataFrame(rows).sort_values("Xếp hạng tổng hợp").reset_index(drop=True)
 
 
 def ai_policy_analysis(kpi_df, risk_df, rec_df, s5, score_weights):
@@ -838,32 +886,34 @@ def validation_checks(scenarios, sim_df, kpi_df, risk_df, candidate_df):
     )
 
     return pd.DataFrame(checks)
+    return pd.DataFrame(rows).sort_values("Xếp hạng").reset_index(drop=True)
 
 
 def make_styled_table(df, decimals=3):
-show_df = df.copy()
-
-format_dict = {}
+@@ -829,7 +547,7 @@ def make_styled_table(df, decimals=3):
 
 for col in show_df.columns:
 if pd.api.types.is_numeric_dtype(show_df[col]):
-            if str(col).lower() in ["năm", "xếp hạng tổng hợp", "xếp hạng gdp", "xếp hạng ai", "xếp hạng risk"]:
             if str(col).lower() in ["năm", "xếp hạng tổng hợp"]:
+            if str(col).lower() in ["năm", "xếp hạng"]:
 format_dict[col] = "{:.0f}"
 else:
 format_dict[col] = "{:." + str(decimals) + "f}"
-@@ -633,17 +922,62 @@ def style_base_fig(fig, height=430):
+@@ -922,472 +640,200 @@ def style_base_fig(fig, height=430):
 
 
 def render():
-    st.title("Bài 12. AIDEOM-VN tích hợp")
-    st.caption("Dashboard ra quyết định chính sách: mô-đun, kịch bản, KPI 2030, cảnh báo rủi ro và khuyến nghị")
     st.title("Bài 12. AIDEOM-VN tích hợp nâng cao")
     st.caption("Dashboard ra quyết định: M1-M6, kịch bản, S5 tự tối ưu, KPI 2030, cảnh báo rủi ro và khuyến nghị chính sách")
+    st.title("Bài 12. AIDEOM-VN tích hợp")
+    st.caption("Dashboard tinh gọn: kịch bản, KPI 2030, cảnh báo rủi ro và khuyến nghị chính sách")
 
     macro, macro_source = load_macro_data()
     regions, region_source = load_region_data()
     sectors, sector_source = load_sector_data()
+    macro = load_macro_data()
+    regions = load_region_data()
+    sectors = load_sector_data()
 
     with st.expander("Cấu hình mô phỏng và trọng số AIDEOM score", expanded=False):
         st.markdown("Điều chỉnh trọng số để xem S5 tối ưu thay đổi như thế nào.")
@@ -878,13 +928,11 @@ def render():
         w_risk = c5.slider("Trọng số giảm rủi ro", 0.05, 0.40, 0.15, 0.05)
         w_training = c6.slider("Trọng số nhân lực số", 0.05, 0.35, 0.05, 0.05)
 
-    macro = load_macro_data()
-    regions = load_region_data()
-    sectors = load_sector_data()
         annual_budget = st.slider("Ngân sách mô phỏng hằng năm", 500, 3000, 1000, 100)
+    base = get_base_values(macro, regions, sectors)
+    scenarios = build_scenarios(base)
+    scenarios_df = pd.DataFrame(scenarios)
 
-    sim_df = simulate_scenarios(macro, regions, sectors, annual_budget=1000)
-    kpi_df = kpi_2030_table(sim_df)
     score_weights = normalize_weights(
         {
             "GDP": w_gdp,
@@ -895,6 +943,10 @@ def render():
             "Training": w_training,
         }
     )
+    sim_df = simulate_all(scenarios, base)
+    kpi_df = kpi_2030(sim_df)
+    risk_df = risk_alerts(sim_df)
+    rec_df = recommendations(kpi_df, risk_df)
 
     base = base_values_from_data(macro, regions, sectors)
     s5, candidate_df = optimize_s5_allocation(
@@ -903,9 +955,14 @@ def render():
         annual_budget=annual_budget,
         step=0.05,
     )
+    best_scenario = kpi_df.iloc[0]["Kịch bản"]
+    best_score = kpi_df.iloc[0]["AIDEOM score"]
 
     scenarios = build_scenarios(s5)
     scenarios_df = pd.DataFrame(scenarios)
+    st.header("12.1. Yêu cầu chức năng")
+    st.markdown("Mô hình **AIDEOM-VN** gồm 6 module liên kết theo cấu trúc Mục 14 của bài báo nguồn.")
+    show_table(pd.DataFrame(MODULES), decimals=3)
 
     sim_df = simulate_scenarios(
         scenarios=scenarios,
@@ -913,50 +970,54 @@ def render():
         regions=regions,
         sectors=sectors,
         annual_budget=annual_budget,
-    )
+    st.header("12.2. Năm kịch bản chính sách")
+    show_table(
+        scenarios_df[
+            ["Kịch bản", "Mô tả ngắn", "Đặc điểm phân bổ", "K", "D", "AI", "H"]
+        ],
+        decimals=3,
+)
 
     kpi_df = kpi_2030_table(sim_df, score_weights)
-risk_df = risk_alert_table(sim_df)
-rec_df = recommendation_table(kpi_df, risk_df)
+    risk_df = risk_alert_table(sim_df)
+    rec_df = recommendation_table(kpi_df, risk_df)
     validation_df = validation_checks(scenarios, sim_df, kpi_df, risk_df, candidate_df)
 
-best_scenario = kpi_df.iloc[0]["Kịch bản"]
-best_score = kpi_df.iloc[0]["AIDEOM score"]
-@@ -653,40 +987,42 @@ def render():
-"Tổng quan AIDEOM-VN",
+    best_scenario = kpi_df.iloc[0]["Kịch bản"]
+    best_score = kpi_df.iloc[0]["AIDEOM score"]
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Số module", "6")
+    c2.metric("Kịch bản tốt nhất", best_scenario)
+    c3.metric("AIDEOM score", f"{best_score:.3f}")
+
+tabs = st.tabs(
+[
+            "Tổng quan AIDEOM-VN",
 "Đường kịch bản",
 "KPI năm 2030",
             "S5 tối ưu tự động",
 "Cảnh báo rủi ro",
-            "Thảo luận chính sách",
             "Tác nhân AI phân tích",
+            "Thảo luận chính sách",
 "Khuyến nghị chính sách",
             "Kiểm định & tải dữ liệu",
 ]
 )
 
-    # =====================================================
-    # 12.1 + 12.2
-    # =====================================================
 with tabs[0]:
-st.header("12.1. Yêu cầu chức năng")
+        st.header("12.1. Yêu cầu chức năng")
 
-st.markdown(
-"""
-           Mô hình **AIDEOM-VN** gồm 6 module liên kết theo cấu trúc Mục 14 của bài báo nguồn.
-            Mục tiêu là tích hợp các kết quả từ Bài 1 đến Bài 11 thành một dashboard ra quyết định chính sách.
+        st.markdown(
+            """
+            Mô hình **AIDEOM-VN** gồm 6 module liên kết theo cấu trúc Mục 14 của bài báo nguồn.
             Bài 12 đóng vai trò tích hợp kết quả từ các bài trước thành dashboard hỗ trợ ra quyết định.
-           """
-)
+            """
+        )
 
-show_table(modules_df(), decimals=3)
+        show_table(modules_df(), decimals=3)
 
-st.header("12.2. Năm kịch bản chính sách")
+        st.header("12.2. Năm kịch bản chính sách")
 
-        scenario_display = scenario_df()[
-            ["Kịch bản", "Mô tả ngắn", "Đặc điểm phân bổ", "K", "D", "AI", "H"]
-        ]
-        show_table(scenario_display, decimals=3)
         show_table(
             scenarios_df[
                 ["Kịch bản", "Mô tả ngắn", "Đặc điểm phân bổ", "K", "D", "AI", "H", "Loại"]
@@ -964,50 +1025,51 @@ st.header("12.2. Năm kịch bản chính sách")
             decimals=3,
         )
 
-        c1, c2, c3 = st.columns(3)
         c1, c2, c3, c4 = st.columns(4)
-c1.metric("Số module", "6")
-c2.metric("Số kịch bản", "5")
-c3.metric("Kịch bản tốt nhất", best_scenario)
+        c1.metric("Số module", "6")
+        c2.metric("Số kịch bản", "5")
+        c3.metric("Kịch bản tốt nhất", best_scenario)
         c4.metric("AIDEOM score", f"{best_score:.3f}")
 
-        alloc_long = scenario_df().melt(
         alloc_long = scenarios_df.melt(
-id_vars=["Kịch bản"],
-value_vars=["K", "D", "AI", "H"],
-var_name="Hạng mục",
-@@ -699,6 +1035,7 @@ def render():
-y="Tỷ trọng",
-color="Hạng mục",
-title="Cấu trúc phân bổ K/D/AI/H theo 5 kịch bản",
-            color_discrete_map=MULTI_COLORS,
-)
-fig_alloc.update_traces(marker_line_color="white", marker_line_width=1)
-fig_alloc.update_layout(
-@@ -709,18 +1046,13 @@ def render():
-style_base_fig(fig_alloc, height=470)
-st.plotly_chart(fig_alloc, use_container_width=True)
-
-        st.success(
-            "Dashboard tích hợp M1-M6 và mô phỏng 5 kịch bản chính sách đến năm 2030."
+            id_vars=["Kịch bản"],
+            value_vars=["K", "D", "AI", "H"],
+            var_name="Hạng mục",
+            value_name="Tỷ trọng",
         )
+
+        fig_alloc = px.bar(
+            alloc_long,
+            x="Kịch bản",
+            y="Tỷ trọng",
+            color="Hạng mục",
+            title="Cấu trúc phân bổ K/D/AI/H theo 5 kịch bản",
+            color_discrete_map=MULTI_COLORS,
+        )
+        fig_alloc.update_traces(marker_line_color="white", marker_line_width=1)
+        fig_alloc.update_layout(
+            barmode="stack",
+            xaxis_title="Kịch bản",
+            yaxis_title="Tỷ trọng ngân sách",
+        )
+        style_base_fig(fig_alloc, height=470)
+        st.plotly_chart(fig_alloc, use_container_width=True)
+
         st.success("Bản nâng cấp đã có S5 tự tối ưu theo trọng số KPI, không còn là tỷ trọng cố định.")
 
-    # =====================================================
-    # Đường kịch bản
-    # =====================================================
-with tabs[1]:
+    with tabs[1]:
 st.header("Đường kịch bản 2026-2030")
 
-metric_choice = st.selectbox(
-            "Chọn chỉ tiêu để vẽ đường kịch bản",
-            "Chọn chỉ tiêu",
+        metric_choice = st.selectbox(
+        metric = st.selectbox(
+"Chọn chỉ tiêu",
 [
 "GDP",
 "GDP growth (%)",
-@@ -729,16 +1061,12 @@ def render():
-"Lao động đào tạo (%)",
-"Kinh tế số/GDP (%)",
+"Digital Index",
+"AI Readiness",
+                "Lao động đào tạo (%)",
+                "Kinh tế số/GDP (%)",
 "NetJob",
                 "DisplacedJob",
 "Risk score",
@@ -1015,39 +1077,32 @@ metric_choice = st.selectbox(
 index=0,
 )
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Kịch bản tốt nhất", best_scenario)
-        c2.metric("AIDEOM score", f"{best_score:.3f}")
-        c3.metric("Năm đích", "2030")
-
-fig_line = px.line(
+        fig_line = px.line(
+        fig = px.line(
 sim_df,
 x="Năm",
-@@ -749,26 +1077,27 @@ def render():
+            y=metric_choice,
+            y=metric,
+color="Kịch bản",
+markers=True,
+            title=f"Đường kịch bản theo chỉ tiêu: {metric_choice}",
+            title=f"Đường kịch bản theo {metric}",
 color_discrete_map=MULTI_COLORS,
 )
-fig_line.update_traces(line=dict(width=4), marker=dict(size=8))
-        fig_line.update_layout(
-            xaxis_title="Năm",
-            yaxis_title=metric_choice,
-        )
+        fig_line.update_traces(line=dict(width=4), marker=dict(size=8))
         fig_line.update_layout(xaxis_title="Năm", yaxis_title=metric_choice)
-style_base_fig(fig_line, height=500)
-st.plotly_chart(fig_line, use_container_width=True)
+        style_base_fig(fig_line, height=500)
+        st.plotly_chart(fig_line, use_container_width=True)
+        fig.update_traces(line=dict(width=4), marker=dict(size=8))
+        fig.update_layout(xaxis_title="Năm", yaxis_title=metric)
+        style_base_fig(fig, height=480)
+        st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Bảng dữ liệu mô phỏng")
         st.subheader("Dữ liệu mô phỏng 2026-2030")
-show_table(sim_df, decimals=3)
+        show_table(sim_df, decimals=3)
 
-        st.success(
-            "Đường kịch bản giúp so sánh động thái của tăng trưởng, số hóa, AI readiness, việc làm và rủi ro theo thời gian."
-        )
-
-    # =====================================================
-    # KPI 2030
-    # =====================================================
-with tabs[2]:
-st.header("KPI năm 2030")
+    with tabs[2]:
+        st.header("KPI năm 2030")
 
         weight_df = pd.DataFrame(
             {
@@ -1060,65 +1115,86 @@ st.header("KPI năm 2030")
         show_table(weight_df, decimals=3)
 
         st.subheader("Bảng KPI 2030")
-show_table(kpi_df, decimals=3)
+        show_table(kpi_df, decimals=3)
 
-kpi_long = kpi_df[
-@@ -794,44 +1123,93 @@ def render():
-y="Giá trị",
-color="KPI",
-barmode="group",
-            title="So sánh KPI năm 2030 theo kịch bản",
-            title="So sánh KPI năm 2030",
+        kpi_long = kpi_df[
+            [
+                "Kịch bản",
+                "GDP",
+                "Digital Index",
+                "AI Readiness",
+                "Lao động đào tạo (%)",
+                "Kinh tế số/GDP (%)",
+                "NetJob",
+                "Risk score",
+            ]
+        ].melt(
+        alloc_long = scenarios_df.melt(
+id_vars="Kịch bản",
+            var_name="KPI",
+            value_name="Giá trị",
+            value_vars=["K", "D", "AI", "H"],
+            var_name="Hạng mục",
+            value_name="Tỷ trọng",
 )
-fig_kpi.update_traces(marker_line_color="white", marker_line_width=1)
-        fig_kpi.update_layout(
-            xaxis_title="Kịch bản",
-            yaxis_title="Giá trị KPI",
-        )
+
+        fig_kpi = px.bar(
+            kpi_long,
+        fig_alloc = px.bar(
+            alloc_long,
+x="Kịch bản",
+            y="Giá trị",
+            color="KPI",
+            barmode="group",
+            title="So sánh KPI năm 2030",
+            y="Tỷ trọng",
+            color="Hạng mục",
+            title="Cấu trúc phân bổ K/D/AI/H",
+            color_discrete_map=MULTI_COLORS,
+)
+        fig_kpi.update_traces(marker_line_color="white", marker_line_width=1)
         fig_kpi.update_layout(xaxis_title="Kịch bản", yaxis_title="Giá trị KPI")
-style_base_fig(fig_kpi, height=540)
-st.plotly_chart(fig_kpi, use_container_width=True)
+        style_base_fig(fig_kpi, height=540)
+        st.plotly_chart(fig_kpi, use_container_width=True)
+        fig_alloc.update_traces(marker_line_color="white", marker_line_width=1)
+        fig_alloc.update_layout(barmode="stack", xaxis_title="Kịch bản", yaxis_title="Tỷ trọng")
+        style_base_fig(fig_alloc, height=430)
+        st.plotly_chart(fig_alloc, use_container_width=True)
 
-        score_plot = kpi_df.sort_values("AIDEOM score", ascending=True)
+    with tabs[1]:
+        st.header("KPI năm 2030")
 
-fig_score = px.bar(
-            kpi_df.sort_values("AIDEOM score", ascending=True),
-            score_plot,
+        show_table(kpi_df, decimals=3)
+
+score_plot = kpi_df.sort_values("AIDEOM score", ascending=True)
+
+        fig_score = px.bar(
+        fig = px.bar(
+score_plot,
 x="AIDEOM score",
 y="Kịch bản",
 orientation="h",
-            text=kpi_df.sort_values("AIDEOM score", ascending=True)["AIDEOM score"].round(3),
-            title="Xếp hạng tổng hợp AIDEOM score năm 2030",
-            text=score_plot["AIDEOM score"].round(3),
-            title="Xếp hạng AIDEOM score năm 2030",
+text=score_plot["AIDEOM score"].round(3),
+title="Xếp hạng AIDEOM score năm 2030",
 )
-fig_score.update_traces(
-marker_color=BRAND,
-textposition="outside",
-textfont=dict(color=BRAND),
-)
-        fig_score.update_layout(
-            xaxis_title="AIDEOM score",
-            yaxis_title="Kịch bản",
+        fig_score.update_traces(
+            marker_color=BRAND,
+            textposition="outside",
+            textfont=dict(color=BRAND),
         )
         fig_score.update_layout(xaxis_title="AIDEOM score", yaxis_title="Kịch bản")
-style_base_fig(fig_score, height=430)
-st.plotly_chart(fig_score, use_container_width=True)
+        style_base_fig(fig_score, height=430)
+        st.plotly_chart(fig_score, use_container_width=True)
 
-        st.success(
-            f"Kịch bản có điểm tổng hợp cao nhất năm 2030 là {best_scenario}."
         st.download_button(
             "Tải KPI 2030 CSV",
             data=kpi_df.to_csv(index=False).encode("utf-8-sig"),
             file_name="bai12_kpi_2030.csv",
             mime="text/csv",
             key="download_kpi_2030",
-)
+        )
 
-    # =====================================================
-    # Cảnh báo rủi ro
-    # =====================================================
-with tabs[3]:
+    with tabs[3]:
         st.header("S5 tối ưu tự động")
 
         c1, c2, c3, c4 = st.columns(4)
@@ -1169,83 +1245,62 @@ with tabs[3]:
             title_font=dict(color=BRAND, size=20),
         )
         st.plotly_chart(fig_s5, use_container_width=True)
+        fig.update_traces(marker_color=BRAND, textposition="outside", textfont=dict(color=BRAND))
+        fig.update_layout(xaxis_title="AIDEOM score", yaxis_title="Kịch bản")
+        style_base_fig(fig, height=420)
+        st.plotly_chart(fig, use_container_width=True)
 
     with tabs[4]:
+    with tabs[2]:
 st.header("Cảnh báo rủi ro")
 
 show_table(risk_df, decimals=3)
-@@ -843,6 +1221,7 @@ def render():
-"Cyber risk",
-"Environmental risk",
-"Dependency risk",
+
+risk_long = risk_df[
+            [
+                "Kịch bản",
+                "Risk score",
+                "Cyber risk",
+                "Environmental risk",
+                "Dependency risk",
                 "Labor transition risk",
-]
+            ]
+            ["Kịch bản", "Risk score", "Cyber risk", "Environmental risk", "Labor risk"]
 ].melt(
 id_vars="Kịch bản",
-@@ -856,124 +1235,72 @@ def render():
+var_name="Loại rủi ro",
+value_name="Điểm rủi ro",
+)
+
+        fig_risk = px.bar(
+        fig = px.bar(
+risk_long,
+x="Kịch bản",
 y="Điểm rủi ro",
 color="Loại rủi ro",
 barmode="group",
-            title="Bản đồ rủi ro theo kịch bản năm 2030",
             title="Bản đồ rủi ro năm 2030",
+            title="Rủi ro theo kịch bản năm 2030",
 )
-fig_risk.update_traces(marker_line_color="white", marker_line_width=1)
-        fig_risk.update_layout(
-            xaxis_title="Kịch bản",
-            yaxis_title="Điểm rủi ro 0-100",
-        )
-        style_base_fig(fig_risk, height=500)
+        fig_risk.update_traces(marker_line_color="white", marker_line_width=1)
         fig_risk.update_layout(xaxis_title="Kịch bản", yaxis_title="Điểm rủi ro 0-100")
         style_base_fig(fig_risk, height=520)
-st.plotly_chart(fig_risk, use_container_width=True)
+        st.plotly_chart(fig_risk, use_container_width=True)
+        fig.update_traces(marker_line_color="white", marker_line_width=1)
+        fig.update_layout(xaxis_title="Kịch bản", yaxis_title="Điểm rủi ro")
+        style_base_fig(fig, height=470)
+        st.plotly_chart(fig, use_container_width=True)
 
-        high_alerts = risk_df[risk_df["Mức cảnh báo"] == "Cao"]
         red_alert = risk_df[risk_df["Mức cảnh báo"] == "Đỏ"]
+        red = risk_df[risk_df["Mức cảnh báo"] == "Đỏ"]
 
-        if len(high_alerts) > 0:
-            st.warning(
-                "Có kịch bản cảnh báo cao: "
-                + ", ".join(high_alerts["Kịch bản"].tolist())
-            )
         if len(red_alert) > 0:
             st.warning("Có kịch bản mức Đỏ: " + ", ".join(red_alert["Kịch bản"].tolist()))
+        if len(red) > 0:
+            st.warning("Có kịch bản cần can thiệp: " + ", ".join(red["Kịch bản"].tolist()))
 else:
-            st.success("Không có kịch bản nào ở mức cảnh báo cao theo ngưỡng hiện tại.")
-
-        st.markdown(
-            """
-            Cảnh báo rủi ro trong AIDEOM-VN không chỉ phản ánh mức AI cao,
-            mà còn xét sự mất cân đối giữa AI, nhân lực số, dữ liệu, an ninh mạng và môi trường.
-            """
-        )
-
-    # =====================================================
-    # Thảo luận chính sách
-    # =====================================================
-    with tabs[4]:
-        st.header("Thảo luận chính sách")
-
-        st.markdown("### 1. AIDEOM-VN tích hợp các bài trước như thế nào?")
-
-        st.markdown(
-            """
-            AIDEOM-VN hoạt động như một khung tích hợp. Bài 1 cung cấp nền dự báo tăng trưởng;
-            Bài 4, 7, 8 cung cấp tối ưu phân bổ tĩnh - động - đa mục tiêu;
-            Bài 6 đánh giá sẵn sàng vùng; Bài 9 mô phỏng lao động;
-            Bài 10 đưa bất định vào quyết định; Bài 11 bổ sung tư duy học chính sách thích ứng.
-            """
-        )
-
-        st.markdown("### 2. Tại sao cần so sánh nhiều kịch bản?")
-
-        st.markdown(
-            """
-            Một kịch bản đơn lẻ dễ tạo cảm giác chắc chắn giả tạo.
-            Trong thực tế, chuyển đổi số Việt Nam chịu ảnh hưởng của tăng trưởng, FDI, kỹ năng lao động,
-            rủi ro tự động hóa, an ninh dữ liệu, thiên tai, biến động chuỗi cung ứng và thay đổi công nghệ.
-            Vì vậy, dashboard cần so sánh nhiều đường kịch bản để thấy đánh đổi giữa tăng trưởng, bao trùm và rủi ro.
-            """
             st.success("Không có kịch bản nào ở mức Đỏ theo ngưỡng hiện tại.")
+            st.success("Không có kịch bản nào ở mức cảnh báo Đỏ.")
 
         st.download_button(
             "Tải cảnh báo rủi ro CSV",
@@ -1253,101 +1308,103 @@ else:
             file_name="bai12_risk_alerts.csv",
             mime="text/csv",
             key="download_risk_alerts",
-)
+        )
 
-        st.markdown("### 3. Kịch bản nào nên là trục chính sách?")
     with tabs[5]:
         st.header("Tác nhân AI phân tích kết quả")
+    with tabs[3]:
+        st.header("Thảo luận chính sách")
 
-        st.success(
-            f"Theo AIDEOM score năm 2030, kịch bản nên ưu tiên là **{best_scenario}**."
-        )
         analysis_text, weights_df = ai_policy_analysis(kpi_df, risk_df, rec_df, s5, score_weights)
-
         st.markdown(
-            """
-            Tuy nhiên, kết quả mô hình không nên được hiểu là mệnh lệnh tự động.
-            Đây là cơ sở kỹ thuật để hỗ trợ ra quyết định. Nhà hoạch định chính sách vẫn cần cân nhắc:
-            năng lực ngân sách, địa - chính trị, công bằng vùng, an sinh lao động,
-            an ninh dữ liệu và tính khả thi thể chế.
-            """
-        )
-        st.markdown(analysis_text)
+            f"""
+            **1. Kịch bản nổi bật:**  
+            Theo điểm tổng hợp, kịch bản tốt nhất là **{best_scenario}**.
 
-        st.markdown("### 4. AI có nên được ưu tiên tuyệt đối không?")
+        st.markdown(analysis_text)
+            **2. Ý nghĩa của S5:**  
+            S5 không cố định trước mà được mô hình tự chọn theo tiêu chí cân bằng giữa GDP, số hóa, AI, NetJob và rủi ro.
+
         st.subheader("Trọng số tác nhân đang sử dụng")
         show_table(weights_df, decimals=3)
+            **3. Đánh đổi chính sách:**  
+            S3 thường mạnh về AI nhưng có thể làm tăng rủi ro lao động và phụ thuộc công nghệ.  
+            S4 tốt cho bao trùm nhưng tốc độ tăng trưởng có thể thấp hơn.  
+            S5 là phương án trung dung, phù hợp làm baseline chính sách.
 
-        st.markdown(
-            """
-            AI là động lực tăng năng suất, nhưng nếu AI tăng nhanh hơn dữ liệu, nhân lực và quản trị rủi ro,
-            nền kinh tế có thể đối mặt với phụ thuộc công nghệ, rủi ro an ninh mạng và dịch chuyển lao động.
-            Vì vậy, AI nên đi cùng ba điều kiện: dữ liệu tốt, nhân lực đủ và khung quản trị an toàn.
-            """
         st.info(
             "Tác nhân này là phân tích offline/rule-based để tránh lỗi API key khi deploy. "
             "Nội dung vẫn dựa trên kết quả định lượng của dashboard."
+            **4. Nguyên tắc sử dụng mô hình:**  
+            AIDEOM-VN chỉ là công cụ hỗ trợ ra quyết định, không thay thế đánh giá chính trị - xã hội.
+            """
 )
 
-    # =====================================================
-    # Khuyến nghị chính sách
-    # =====================================================
-    with tabs[5]:
     with tabs[6]:
+    with tabs[4]:
 st.header("Khuyến nghị chính sách")
 
 show_table(rec_df, decimals=3)
 
-st.markdown("### Khuyến nghị trung tâm")
+        st.markdown("### Khuyến nghị trung tâm")
 
-        st.success(
-            f"Chọn **{best_scenario}** làm kịch bản chính sách nền cho giai đoạn 2026-2030."
-        )
         st.success(f"Chọn **{best_scenario}** làm kịch bản nền cho giai đoạn 2026-2030.")
+        st.success(f"Khuyến nghị chính: chọn **{best_scenario}** làm kịch bản nền giai đoạn 2026-2030.")
 
 st.markdown(
 """
-            **Một là, triển khai kịch bản tối ưu cân bằng làm baseline.**
-            Không nên cực đoan theo hướng chỉ đầu tư hạ tầng truyền thống hoặc chỉ chạy theo AI.
-            Chính sách cần cân bằng giữa K, D, AI và H.
             **Một là, dùng S5 tối ưu cân bằng làm baseline.**  
             Chính sách không nên cực đoan theo hướng chỉ đầu tư hạ tầng truyền thống hoặc chỉ chạy theo AI.
 
-            **Hai là, đặt nhân lực số là điều kiện bắt buộc của đầu tư AI.**
-            Mọi dự án AI quy mô lớn nên có cấu phần đào tạo lại, nâng kỹ năng và chuyển đổi việc làm.
             **Hai là, AI phải đi cùng nhân lực số.**  
             Mọi dự án AI quy mô lớn cần có cấu phần đào tạo lại, nâng kỹ năng, chuyển đổi việc làm và an sinh lao động.
 
-            **Ba là, xây dựng dashboard cảnh báo sớm rủi ro.**
-            Cần theo dõi đồng thời cyber risk, environmental risk, dependency risk và NetJob.
-            Kịch bản có GDP cao nhưng Risk score quá cao không nên được chọn nguyên trạng.
             **Ba là, dữ liệu và an ninh mạng là điều kiện nền.**  
             Nếu số hóa nhanh nhưng thiếu quản trị dữ liệu, rủi ro cyber và dependency có thể tăng mạnh.
+            **Khuyến nghị cô đọng:**
 
-            **Bốn là, ưu tiên vùng yếu và SME trong chính sách bao trùm.**
-            Nếu chỉ ưu tiên vùng có năng lực hấp thụ cao, chuyển đổi số có thể làm tăng chênh lệch vùng miền.
             **Bốn là, ưu tiên vùng yếu và SME.**  
             Nếu chỉ ưu tiên vùng có năng lực hấp thụ cao, chuyển đổi số có thể làm tăng khoảng cách vùng miền.
 
-            **Năm là, dùng mô hình như công cụ hỗ trợ, không thay thế quyết định chính trị - xã hội.**
-            AIDEOM-VN nên được đặt trong quy trình có chuyên gia, địa phương, doanh nghiệp và đại diện người lao động tham gia.
             **Năm là, giữ vai trò con người trong quyết định cuối cùng.**  
             AIDEOM-VN là công cụ hỗ trợ ra quyết định, không thay thế quy trình chính trị - xã hội.
+            - Không nên chỉ đầu tư theo hướng truyền thống S1.
+            - Nếu chọn S2 hoặc S3, cần tăng mạnh an ninh dữ liệu và đào tạo lại lao động.
+            - Nếu ưu tiên công bằng xã hội, S4 là kịch bản hỗ trợ tốt.
+            - S5 nên được dùng làm phương án nền vì cân bằng giữa tăng trưởng, AI, việc làm và rủi ro.
+            - Cần theo dõi hằng năm các KPI: GDP, Digital Index, AI Readiness, NetJob và Risk score.
            """
 )
 
-        st.markdown("### Bộ KPI theo dõi hằng năm")
-
-        kpi_tracking = pd.DataFrame(
         tracking = pd.DataFrame(
-{
-"Nhóm KPI": [
-"Tăng trưởng",
-@@ -1002,10 +1329,65 @@ def render():
-}
-)
+            {
+                "Nhóm KPI": [
+                    "Tăng trưởng",
+                    "Số hóa",
+                    "AI",
+                    "Lao động",
+                    "Rủi ro",
+                    "Bao trùm",
+                ],
+                "Chỉ tiêu đề xuất": [
+                    "GDP, TFP, năng suất lao động",
+                    "Digital Index, tỷ trọng kinh tế số/GDP",
+                    "AI Readiness, số dự án AI công - tư",
+                    "NetJob, tỷ lệ lao động được đào tạo lại",
+                    "Cyber risk, dependency risk, environmental risk",
+                    "Khoảng cách số vùng, SME digital adoption",
+                ],
+                "Tần suất": [
+                    "Hằng năm",
+                    "Hằng năm",
+                    "6 tháng - 1 năm",
+                    "6 tháng",
+                    "Quý - 6 tháng",
+                    "Hằng năm",
+                ],
+            }
+        )
 
-        show_table(kpi_tracking, decimals=3)
         st.subheader("Bộ KPI theo dõi hằng năm")
         show_table(tracking, decimals=3)
 
@@ -1401,12 +1458,15 @@ st.markdown(
             "Tải ứng viên S5 CSV",
             data=candidate_df.to_csv(index=False).encode("utf-8-sig"),
             file_name="bai12_s5_candidates.csv",
-            mime="text/csv",
+        st.download_button(
+            "Tải bảng KPI 2030 CSV",
+            data=kpi_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name="bai12_kpi_2030.csv",
+mime="text/csv",
             key="download_s5_candidates",
         )
 
-st.info(
-            "Kết luận: Bài 12 đóng vai trò dashboard tích hợp, chuyển kết quả định lượng từ các bài trước thành công cụ hỗ trợ ra quyết định chính sách."
+        st.info(
             "Bài 12 bản nâng cấp đã có đủ: M1-M6, S1-S5, S5 tự tối ưu, KPI 2030, cảnh báo rủi ro, phân tích chính sách và tải dữ liệu."
 )
 
