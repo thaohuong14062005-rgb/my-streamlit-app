@@ -7,6 +7,11 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+from data_utils import load_csv_data
+
+macro_df = load_csv_data("vietnam_macro_2020_2025.csv")
+regions_df = load_csv_data("vietnam_regions_2024.csv")
+sectors_df = load_csv_data("vietnam_sectors_2024.csv")
 
 BRAND = "#053151"
 
