@@ -633,7 +633,7 @@ def render():
         )
 
     with tabs[2]:
-        st.header("7.4.3. Chọn nghiệm thỏa hiệp bằng TOPSIS")
+       
 
         weight_df = pd.DataFrame(
             {
