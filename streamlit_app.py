@@ -68,7 +68,7 @@ st.markdown(
 # MÀU CHỦ ĐẠO
 # =========================
 MAIN_TEXT = "#053151"
-BG_COLOR = "#FFFAF1"
+BG_COLOR = "#E0E0E0"
 SIDEBAR_BG = "#053151"
 SIDEBAR_TEXT = "#F8F1E3"
 ACCENT = "#E48837"
