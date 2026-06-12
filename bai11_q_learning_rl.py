@@ -775,12 +775,12 @@ def render():
 
     tabs = st.tabs(
         [
-            "11.3.1 Env",
-            "11.3.2 Q-learning",
-            "11.3.3 Chính sách π*",
-            "11.3.4 So sánh chính sách",
-            "11.3.5 DQN",
-            "11.4 Chính sách",
+            "Môi trường Gym/Gymnasium",
+            "Q-learning",
+            "Chính sách π*",
+            "So sánh chính sách",
+            "Mở rộng DQN bằng stable-baselines3",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -788,8 +788,7 @@ def render():
     # 11.3.1
     # =====================================================
     with tabs[0]:
-        st.header("11.3.1. Môi trường Gym/Gymnasium")
-
+      
         c1, c2, c3 = st.columns(3)
         c1.metric("Gymnasium", "Có" if GYM_AVAILABLE else "Fallback nội bộ")
         c2.metric("Episode length", f"{T} năm")
@@ -855,7 +854,7 @@ def render():
     # 11.3.2
     # =====================================================
     with tabs[1]:
-        st.header("11.3.2. Huấn luyện Q-learning tabular")
+       
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Episodes", f"{train_res['episodes']:,}")
@@ -928,7 +927,7 @@ def render():
     # 11.3.3
     # =====================================================
     with tabs[2]:
-        st.header("11.3.3. Trích xuất chính sách π*(s) = argmax Q(s,a)")
+      
 
         report_df = policy_report_table(Q)
 
@@ -969,7 +968,7 @@ def render():
     # 11.3.4
     # =====================================================
     with tabs[3]:
-        st.header("11.3.4. So sánh π* với 3 chính sách rule-based")
+ 
 
         comp_df = comparison_table(Q)
         best_policy = comp_df.iloc[0]["Chính sách"]
@@ -1054,7 +1053,7 @@ def render():
     # 11.3.5
     # =====================================================
     with tabs[4]:
-        st.header("11.3.5. Mở rộng DQN bằng stable-baselines3")
+      
 
         dqn_info = pd.DataFrame(
             {
@@ -1143,7 +1142,7 @@ def render():
     # 11.4
     # =====================================================
     with tabs[5]:
-        st.header("11.4. Thảo luận chính sách")
+      
 
         low_state = np.array([0, 0, 0, 2])
         high_state = np.array([2, 2, 2, 0])
