@@ -8,3 +8,4 @@ scipy
 deap
 gymnasium
 pymoo
+Pyomo
