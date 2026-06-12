@@ -1,4 +1,4 @@
-# bai04_lp_nganh_vung.py
+# bai4_lp_region_budget.py
 # Bài 4 — Quy hoạch tuyến tính phân bổ ngân sách số theo ngành - vùng
 # Module dùng được với streamlit_app.py có cơ chế gọi module.render()
 
