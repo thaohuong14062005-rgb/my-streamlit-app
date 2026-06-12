@@ -639,11 +639,11 @@ def render():
 
     tabs = st.tabs(
         [
-            "9.4.1 PuLP/CBC",
-            "9.4.2 Ngưỡng ngành 2",
-            "9.4.3 Sankey lao động",
-            "9.4.4 Ràng buộc 5%",
-            "9.5 Chính sách",
+            "Giải mô hình bằng PuLP/CBC",
+            "Ngưỡng ngành 2",
+            "Mô phỏng nhóm lao động dễ bị tổn thương",
+            "Ràng buộc 5%",
+            "Thảo luận Chính sách",
         ]
     )
 
@@ -651,7 +651,7 @@ def render():
     # 9.4.1
     # =====================================================
     with tabs[0]:
-        st.header("9.4.1. Giải mô hình bằng PuLP/CBC")
+    
 
         st.subheader("Dữ liệu đầu vào")
         show_table(sector_data(), decimals=3)
@@ -746,7 +746,7 @@ def render():
     # 9.4.2
     # =====================================================
     with tabs[1]:
-        st.header("9.4.2. Ngưỡng đào tạo tối thiểu ở ngành 2")
+       
 
         x_ai_sector2 = st.slider(
             "Giả định x_AI ở ngành 2",
@@ -780,7 +780,7 @@ def render():
     # 9.4.3
     # =====================================================
     with tabs[2]:
-        st.header("9.4.3. Mô phỏng nhóm lao động dễ bị tổn thương")
+   
 
         st.markdown(
             "Nhóm dễ bị tổn thương gồm lao động phổ thông trong các ngành 1, 3, 4: "
@@ -844,7 +844,7 @@ def render():
     # 9.4.4
     # =====================================================
     with tabs[3]:
-        st.header("9.4.4. Thêm ràng buộc không ngành nào mất quá 5% lao động")
+  
 
         compare_df = compare_results(base_result, capped_result)
 
@@ -913,7 +913,6 @@ def render():
     # 9.5
     # =====================================================
     with tabs[4]:
-        st.header("9.5. Thảo luận chính sách")
 
         base_df = result_table(base_result) if base_result["success"] else pd.DataFrame()
 
